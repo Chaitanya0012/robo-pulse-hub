@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, BookOpen } from "lucide-react";
+import { ExternalLink, BookOpen, Star } from "lucide-react";
 
 interface ResourceCardProps {
   title: string;
@@ -9,9 +9,11 @@ interface ResourceCardProps {
   category: string;
   difficulty: "beginner" | "intermediate" | "advanced";
   type: string;
+  rating?: number;
+  ratingCount?: number;
 }
 
-const ResourceCard = ({ title, description, category, difficulty, type }: ResourceCardProps) => {
+const ResourceCard = ({ title, description, category, difficulty, type, rating = 0, ratingCount = 0 }: ResourceCardProps) => {
   const difficultyColors = {
     beginner: "bg-success/20 text-success",
     intermediate: "bg-warning/20 text-warning",
@@ -28,6 +30,13 @@ const ResourceCard = ({ title, description, category, difficulty, type }: Resour
       </div>
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
+      {ratingCount > 0 && (
+        <div className="flex items-center gap-1 mb-3 text-sm">
+          <Star className="h-4 w-4 fill-primary text-primary" />
+          <span className="font-medium">{rating.toFixed(1)}</span>
+          <span className="text-muted-foreground">({ratingCount} reviews)</span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Badge variant="secondary" className="text-xs">

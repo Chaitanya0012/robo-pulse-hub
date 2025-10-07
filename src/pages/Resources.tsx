@@ -3,7 +3,7 @@ import Navigation from "@/components/Navigation";
 import ResourceCard from "@/components/ResourceCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Plus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -11,73 +11,119 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useResources } from "@/hooks/useResources";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Resources = () => {
+  const { user } = useAuth();
+  const { resources, isLoading, createResource } = useResources();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [difficultyFilter, setDifficultyFilter] = useState("all");
-
-  const resources = [
-    {
-      title: "Arduino Basics for Beginners",
-      description: "Learn the fundamentals of Arduino programming and circuit building with hands-on examples.",
-      category: "Electronics",
-      difficulty: "beginner" as const,
-      type: "Tutorial",
-    },
-    {
-      title: "Python for Robotics",
-      description: "Master Python programming concepts specifically for robotics applications and automation.",
-      category: "Programming",
-      difficulty: "intermediate" as const,
-      type: "Course",
-    },
-    {
-      title: "Advanced AI & Machine Learning",
-      description: "Dive deep into neural networks, computer vision, and machine learning algorithms.",
-      category: "AI",
-      difficulty: "advanced" as const,
-      type: "Guide",
-    },
-    {
-      title: "Sensor Integration Workshop",
-      description: "Learn how to integrate various sensors with microcontrollers and process sensor data.",
-      category: "Electronics",
-      difficulty: "intermediate" as const,
-      type: "Workshop",
-    },
-    {
-      title: "3D Design for Robotics",
-      description: "Create custom robot parts and enclosures using CAD software and 3D printing.",
-      category: "Mechanical",
-      difficulty: "beginner" as const,
-      type: "Video",
-    },
-    {
-      title: "ROS (Robot Operating System)",
-      description: "Explore the Robot Operating System framework for building complex robotic systems.",
-      category: "Programming",
-      difficulty: "advanced" as const,
-      type: "Documentation",
-    },
-  ];
+  const [open, setOpen] = useState(false);
+  const [newResource, setNewResource] = useState({
+    title: "",
+    description: "",
+    category: "Programming",
+    url: "",
+    file_url: null,
+    image_url: null,
+  });
 
   const filteredResources = resources.filter((resource) => {
     const matchesSearch = resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.description.toLowerCase().includes(searchQuery.toLowerCase());
+                         (resource.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === "all" || resource.category === categoryFilter;
-    const matchesDifficulty = difficultyFilter === "all" || resource.difficulty === difficultyFilter;
-    return matchesSearch && matchesCategory && matchesDifficulty;
+    return matchesSearch && matchesCategory;
   });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createResource(newResource);
+    setNewResource({ title: "", description: "", category: "Programming", url: "", file_url: null, image_url: null });
+    setOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-cosmic">
       <Navigation />
       <div className="pt-24 pb-12 px-4">
         <div className="container mx-auto">
-          <div className="mb-8 animate-slide-up">
-            <h1 className="text-4xl font-bold mb-2">Resource Hub</h1>
-            <p className="text-muted-foreground">Explore curated tutorials, guides, and tools to enhance your learning</p>
+          <div className="mb-8 animate-slide-up flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold mb-2">Resource Hub</h1>
+              <p className="text-muted-foreground">Explore curated tutorials, guides, and tools to enhance your learning</p>
+            </div>
+            {user && (
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Submit Resource
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Submit a New Resource</DialogTitle>
+                    <DialogDescription>Share a learning resource with the community</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="title">Title</Label>
+                      <Input
+                        id="title"
+                        value={newResource.title}
+                        onChange={(e) => setNewResource({ ...newResource, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={newResource.description}
+                        onChange={(e) => setNewResource({ ...newResource, description: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="category">Category</Label>
+                      <Select value={newResource.category} onValueChange={(value) => setNewResource({ ...newResource, category: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Programming">Programming</SelectItem>
+                          <SelectItem value="Electronics">Electronics</SelectItem>
+                          <SelectItem value="AI">AI</SelectItem>
+                          <SelectItem value="Mechanical">Mechanical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="url">URL</Label>
+                      <Input
+                        id="url"
+                        type="url"
+                        value={newResource.url}
+                        onChange={(e) => setNewResource({ ...newResource, url: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+                    <Button type="submit" className="w-full">Submit Resource</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {/* Search and Filters */}
@@ -111,33 +157,38 @@ const Resources = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-                <SelectTrigger className="w-48 bg-card/50 border-border/50">
-                  <SelectValue placeholder="Difficulty" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Levels</SelectItem>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
           {/* Resources Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredResources.map((resource, index) => (
-              <div key={index} style={{ animationDelay: `${index * 0.1}s` }}>
-                <ResourceCard {...resource} />
-              </div>
-            ))}
-          </div>
-
-          {filteredResources.length === 0 && (
+          {isLoading ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No resources found matching your filters</p>
+              <p className="text-muted-foreground">Loading resources...</p>
             </div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredResources.map((resource, index) => (
+                  <div key={resource.id} style={{ animationDelay: `${index * 0.1}s` }}>
+                    <ResourceCard
+                      title={resource.title}
+                      description={resource.description || ""}
+                      category={resource.category}
+                      type="Resource"
+                      difficulty="beginner"
+                      rating={resource.avg_rating}
+                      ratingCount={resource.rating_count}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {filteredResources.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No resources found matching your filters</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
