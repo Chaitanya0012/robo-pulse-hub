@@ -9,10 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Target, Code, Cpu, CheckCircle2, Clock, Trophy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
+import { useProjects } from "@/hooks/useProjects";
+import { useBadges } from "@/hooks/useBadges";
+import { useSkills } from "@/hooks/useSkills";
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { profile } = useProfile();
+  const { projects, isLoading: projectsLoading } = useProjects();
+  const { badges, isLoading: badgesLoading } = useBadges();
+  const { skills, isLoading: skillsLoading } = useSkills();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -20,7 +28,7 @@ const Dashboard = () => {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  if (loading || projectsLoading || badgesLoading || skillsLoading) {
     return (
       <div className="min-h-screen bg-gradient-cosmic flex items-center justify-center">
         <p className="text-lg">Loading...</p>
@@ -32,18 +40,15 @@ const Dashboard = () => {
     return null;
   }
 
-  const badges = [
-    { id: "1", name: "Circuit Master", icon: "trophy", description: "Completed 10 circuits", earned: true },
-    { id: "2", name: "Code Ninja", icon: "zap", description: "Wrote 1000 lines", earned: true },
-    { id: "3", name: "AI Pioneer", icon: "star", description: "Built first AI model", earned: false },
-    { id: "4", name: "Team Player", icon: "award", description: "Helped 5 students", earned: true },
-  ];
+  const iconMap: Record<string, React.ReactNode> = {
+    target: <Target className="h-5 w-5" />,
+    cpu: <Cpu className="h-5 w-5" />,
+    code: <Code className="h-5 w-5" />,
+  };
 
-  const skills = [
-    { name: "Programming", level: 75, color: "primary" as const },
-    { name: "Electronics", level: 60, color: "secondary" as const },
-    { name: "Mechanical", level: 45, color: "success" as const },
-  ];
+  const completedProjects = projects.filter(p => p.progress === 100).length;
+  const activeProjects = projects.filter(p => p.progress < 100).length;
+  const earnedBadges = badges.filter(b => b.earned).length;
 
   return (
     <div className="min-h-screen bg-gradient-cosmic">
@@ -52,7 +57,7 @@ const Dashboard = () => {
         <div className="container mx-auto">
           {/* Header */}
           <div className="mb-8 animate-slide-up">
-            <h1 className="text-4xl font-bold mb-2">Welcome back, Student! 👋</h1>
+            <h1 className="text-4xl font-bold mb-2">Welcome back, {profile?.full_name || 'Student'}! 👋</h1>
             <p className="text-muted-foreground">Here's your learning progress</p>
           </div>
 
@@ -60,22 +65,20 @@ const Dashboard = () => {
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             <StatsCard
               title="Projects Completed"
-              value="12"
+              value={completedProjects.toString()}
               icon={CheckCircle2}
-              trend="+3 this week"
               color="success"
             />
             <StatsCard
-              title="Active Tasks"
-              value="5"
+              title="Active Projects"
+              value={activeProjects.toString()}
               icon={Clock}
               color="primary"
             />
             <StatsCard
               title="Badges Earned"
-              value="8"
+              value={earnedBadges.toString()}
               icon={Trophy}
-              trend="+2 new"
               color="secondary"
             />
           </div>
@@ -86,42 +89,43 @@ const Dashboard = () => {
             <div className="lg:col-span-2 space-y-6">
               <div>
                 <h2 className="text-2xl font-bold mb-4">Current Projects</h2>
-                <div className="grid gap-4">
-                  <ProgressCard
-                    title="Line Following Robot"
-                    progress={85}
-                    icon={<Target className="h-5 w-5" />}
-                    color="primary"
-                  />
-                  <ProgressCard
-                    title="Arduino Temperature Sensor"
-                    progress={60}
-                    icon={<Cpu className="h-5 w-5" />}
-                    color="secondary"
-                  />
-                  <ProgressCard
-                    title="Python AI Chatbot"
-                    progress={35}
-                    icon={<Code className="h-5 w-5" />}
-                    color="success"
-                  />
-                </div>
+                {projects.length === 0 ? (
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50">
+                    <p className="text-muted-foreground text-center">No projects yet. Start a new project to track your progress!</p>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4">
+                    {projects.map((project) => (
+                      <ProgressCard
+                        key={project.id}
+                        title={project.title}
+                        progress={project.progress}
+                        icon={project.icon ? iconMap[project.icon] : undefined}
+                        color={project.color as "primary" | "secondary" | "success"}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <h2 className="text-2xl font-bold mb-4">Skill Levels</h2>
                 <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50">
-                  <div className="space-y-6">
-                    {skills.map((skill) => (
-                      <div key={skill.name} className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium">{skill.name}</span>
-                          <span className="text-muted-foreground">{skill.level}%</span>
+                  {skills.length === 0 ? (
+                    <p className="text-muted-foreground text-center">No skills tracked yet.</p>
+                  ) : (
+                    <div className="space-y-6">
+                      {skills.map((skill) => (
+                        <div key={skill.id} className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{skill.name}</span>
+                            <span className="text-muted-foreground">{skill.level}%</span>
+                          </div>
+                          <Progress value={skill.level} className="h-2" />
                         </div>
-                        <Progress value={skill.level} className="h-2" />
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </div>
             </div>
@@ -130,11 +134,17 @@ const Dashboard = () => {
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold mb-4">Achievements</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  {badges.map((badge) => (
-                    <BadgeDisplay key={badge.id} badge={badge} />
-                  ))}
-                </div>
+                {badges.length === 0 ? (
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50">
+                    <p className="text-muted-foreground text-center">No badges available yet.</p>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {badges.map((badge) => (
+                      <BadgeDisplay key={badge.id} badge={badge} />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Card className="p-6 bg-gradient-to-br from-primary/20 to-secondary/10 border-primary/30">
