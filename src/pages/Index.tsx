@@ -3,13 +3,30 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
-import { Zap, Target, Users, TrendingUp, Sparkles, Rocket } from "lucide-react";
+import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail } from "lucide-react";
 import heroImage from "@/assets/hero-robotics.jpg";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const { data: partnersLooking } = useQuery({
+    queryKey: ['partners-looking'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, school_email')
+        .eq('looking_for_partner', true)
+        .not('school_email', 'is', null)
+        .order('full_name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
 
   useEffect(() => {
     if (user) {
@@ -112,6 +129,39 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Looking for Partners Section */}
+      {partnersLooking && partnersLooking.length > 0 && (
+        <section className="py-20 px-4 bg-card/20">
+          <div className="container mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold mb-4">Looking for Project Partners</h2>
+              <p className="text-xl text-muted-foreground">Connect with fellow robotics enthusiasts</p>
+            </div>
+            <Card className="p-8 bg-card/50 backdrop-blur-sm border-border/50">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {partnersLooking.map((partner, index) => (
+                  <Card 
+                    key={index}
+                    className="p-4 bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20 hover:border-primary/40 transition-all"
+                  >
+                    <h3 className="font-semibold mb-2">{partner.full_name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      <a 
+                        href={`mailto:${partner.school_email}`}
+                        className="hover:text-primary transition-colors"
+                      >
+                        {partner.school_email}
+                      </a>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-20 px-4">

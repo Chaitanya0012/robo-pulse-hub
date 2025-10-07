@@ -14,6 +14,9 @@ export interface Profile {
   rank: number | null;
   projects_count: number;
   joined_at: string;
+  email_visible: boolean;
+  looking_for_partner: boolean;
+  school_email: string | null;
 }
 
 export const useProfile = () => {

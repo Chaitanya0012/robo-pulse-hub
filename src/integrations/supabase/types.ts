@@ -82,12 +82,15 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           email: string | null
+          email_visible: boolean | null
           full_name: string | null
           id: string
           joined_at: string | null
           level: number | null
+          looking_for_partner: boolean | null
           projects_count: number | null
           rank: number | null
+          school_email: string | null
           total_points: number | null
           updated_at: string | null
           xp: number | null
@@ -96,12 +99,15 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
+          email_visible?: boolean | null
           full_name?: string | null
           id: string
           joined_at?: string | null
           level?: number | null
+          looking_for_partner?: boolean | null
           projects_count?: number | null
           rank?: number | null
+          school_email?: string | null
           total_points?: number | null
           updated_at?: string | null
           xp?: number | null
@@ -110,12 +116,15 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
+          email_visible?: boolean | null
           full_name?: string | null
           id?: string
           joined_at?: string | null
           level?: number | null
+          looking_for_partner?: boolean | null
           projects_count?: number | null
           rank?: number | null
+          school_email?: string | null
           total_points?: number | null
           updated_at?: string | null
           xp?: number | null

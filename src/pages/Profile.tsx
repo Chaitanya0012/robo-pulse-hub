@@ -1,12 +1,10 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
-import BadgeDisplay from "@/components/BadgeDisplay";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Mail, Calendar, Award, TrendingUp } from "lucide-react";
+import { Mail, Calendar, Award } from "lucide-react";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -47,27 +45,9 @@ const Profile = () => {
   const levelProgress = (profile.xp % 1000) / 10; // Assuming 1000 XP per level
   const xpToNextLevel = 1000 - (profile.xp % 1000);
 
-  const badges = [
-    { id: "1", name: "Circuit Master", icon: "trophy", description: "Completed 10 circuits", earned: true },
-    { id: "2", name: "Code Ninja", icon: "zap", description: "Wrote 1000 lines", earned: true },
-    { id: "3", name: "AI Pioneer", icon: "star", description: "Built first AI model", earned: false },
-    { id: "4", name: "Team Player", icon: "award", description: "Helped 5 students", earned: true },
-    { id: "5", name: "Problem Solver", icon: "target", description: "Solved 50 challenges", earned: true },
-    { id: "6", name: "Innovation Star", icon: "trophy", description: "Won hackathon", earned: false },
-  ];
-
   const stats = [
     { label: "Total Points", value: profile.total_points.toLocaleString(), icon: Award, color: "primary" as const },
-    { label: "Rank", value: profile.rank ? `#${profile.rank}` : "Unranked", icon: TrendingUp, color: "secondary" as const },
     { label: "Projects", value: profile.projects_count.toString(), icon: Calendar, color: "success" as const },
-  ];
-
-  const skills = [
-    { name: "Arduino & Electronics", level: 85 },
-    { name: "Python Programming", level: 75 },
-    { name: "AI & Machine Learning", level: 60 },
-    { name: "Mechanical Design", level: 45 },
-    { name: "Circuit Design", level: 70 },
   ];
 
   return (
@@ -88,20 +68,19 @@ const Profile = () => {
                   Robotics Enthusiast | Level {profile.level} | {profile.xp.toLocaleString()} XP
                 </p>
                 <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span>{profile.email || user?.email}</span>
-                  </div>
+                  {profile.email_visible && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-primary" />
+                      <span>{profile.email || user?.email}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-primary" />
                     <span>Joined {joinedDate}</span>
                   </div>
                 </div>
               </div>
-              <EditProfileDialog 
-                currentName={displayName}
-                currentAvatarUrl={profile.avatar_url}
-              />
+              <EditProfileDialog profile={profile} />
             </div>
 
             {/* Level Progress */}
@@ -115,7 +94,7 @@ const Profile = () => {
           </Card>
 
           {/* Stats Grid */}
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
             {stats.map((stat, index) => (
               <Card
                 key={index}
@@ -135,67 +114,18 @@ const Profile = () => {
             ))}
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Skills Section */}
-            <div className="lg:col-span-2 space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-4">Confidence Levels</h2>
-                <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50">
-                  <div className="space-y-6">
-                    {skills.map((skill, index) => (
-                      <div key={index} className="space-y-2 animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium">{skill.name}</span>
-                          <span className="text-muted-foreground">{skill.level}%</span>
-                        </div>
-                        <Progress value={skill.level} className="h-2" />
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
+          <p className="text-sm text-muted-foreground text-center mb-8 p-4 bg-card/30 rounded-lg border border-border/50">
+            💡 <strong>Earn XP</strong> by completing projects, earning badges, and participating in robotics activities. Level up as you gain more experience!
+          </p>
 
-              <div>
-                <h2 className="text-2xl font-bold mb-4">Recent Activity</h2>
-                <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50">
-                  <div className="space-y-4">
-                    {[
-                      { action: "Completed project", title: "Line Following Robot", time: "2 hours ago" },
-                      { action: "Earned badge", title: "Code Ninja", time: "1 day ago" },
-                      { action: "Submitted feedback", title: "Arduino Workshop", time: "3 days ago" },
-                      { action: "Started course", title: "Python for Robotics", time: "5 days ago" },
-                    ].map((activity, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 rounded-lg bg-background/50 animate-fade-in"
-                        style={{ animationDelay: `${index * 0.1}s` }}
-                      >
-                        <div>
-                          <p className="font-medium">{activity.action}</p>
-                          <p className="text-sm text-muted-foreground">{activity.title}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{activity.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            </div>
-
-            {/* Badges Section */}
-            <div>
-              <h2 className="text-2xl font-bold mb-4">Achievements</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {badges.map((badge) => (
-                  <BadgeDisplay key={badge.id} badge={badge} />
-                ))}
-              </div>
-              <Card className="mt-6 p-4 bg-gradient-to-br from-primary/20 to-secondary/10 border-primary/30 text-center">
-                <Award className="h-8 w-8 text-primary mx-auto mb-2" />
-                <p className="text-sm font-medium">3 badges earned</p>
-                <p className="text-xs text-muted-foreground">3 more to unlock</p>
-              </Card>
-            </div>
+          <div className="text-center">
+            <Card className="p-12 bg-card/50 backdrop-blur-sm border-border/50">
+              <Award className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h2 className="text-2xl font-bold mb-2">No Achievements Yet</h2>
+              <p className="text-muted-foreground">
+                Complete projects and participate in activities to earn badges and track your progress!
+              </p>
+            </Card>
           </div>
         </div>
       </div>

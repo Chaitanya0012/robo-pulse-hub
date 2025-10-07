@@ -14,6 +14,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { useBadges } from "@/hooks/useBadges";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { useConfidence } from "@/hooks/useConfidence";
+import { EditProjectDialog } from "@/components/EditProjectDialog";
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -102,13 +103,17 @@ const Dashboard = () => {
                     {projects.map((project) => {
                       const IconComponent = getIconComponent(project.icon);
                       return (
-                        <ProgressCard
-                          key={project.id}
-                          title={project.title}
-                          progress={project.progress}
-                          icon={<IconComponent className="h-5 w-5" />}
-                          color={(project.color as "primary" | "secondary" | "success") || "primary"}
-                        />
+                        <div key={project.id} className="relative group">
+                          <ProgressCard
+                            title={project.title}
+                            progress={project.progress}
+                            icon={<IconComponent className="h-5 w-5" />}
+                            color={(project.color as "primary" | "secondary" | "success") || "primary"}
+                          />
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <EditProjectDialog project={project} />
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
