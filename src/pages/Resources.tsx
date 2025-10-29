@@ -24,11 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useResources } from "@/hooks/useResources";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useToast } from "@/hooks/use-toast";
 
 const Resources = () => {
   const { user } = useAuth();
   const { resources, isLoading, createResource, deleteResource } = useResources();
   const { isModerator } = useUserRole();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [open, setOpen] = useState(false);
@@ -52,6 +54,34 @@ const Resources = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add resources",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isModerator) {
+      toast({
+        title: "Error", 
+        description: "Only moderators can add resources",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newResource.title.trim()) {
+      toast({
+        title: "Error",
+        description: "Title is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createResource(newResource);
     setNewResource({ 
       title: "", 
@@ -91,12 +121,14 @@ const Resources = () => {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <Label htmlFor="title">Title</Label>
+                      <Label htmlFor="title">Title *</Label>
                       <Input
                         id="title"
                         value={newResource.title}
                         onChange={(e) => setNewResource({ ...newResource, title: e.target.value })}
                         required
+                        maxLength={200}
+                        placeholder="Resource title"
                       />
                     </div>
                     <div>
@@ -106,6 +138,8 @@ const Resources = () => {
                         value={newResource.description}
                         onChange={(e) => setNewResource({ ...newResource, description: e.target.value })}
                         rows={3}
+                        maxLength={1000}
+                        placeholder="Brief description of the resource"
                       />
                     </div>
                     <div>
@@ -157,8 +191,12 @@ const Resources = () => {
                         type="url"
                         value={newResource.url}
                         onChange={(e) => setNewResource({ ...newResource, url: e.target.value })}
-                        placeholder="https://..."
+                        placeholder="https://example.com/resource"
+                        maxLength={500}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Link to the external resource
+                      </p>
                     </div>
                     <Button type="submit" className="w-full">Add Resource</Button>
                   </form>

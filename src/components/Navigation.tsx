@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Home, BookOpen, MessageSquare, User, BarChart3, Zap, LogOut, Shield } from "lucide-react";
+import { Home, BookOpen, MessageSquare, User, BarChart3, Zap, LogOut, Shield, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const Navigation = () => {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { isModerator } = useUserRole();
+  const { isModerator, isAdmin } = useUserRole();
   
   const isActive = (path: string) => location.pathname === path;
   
@@ -65,6 +65,21 @@ const Navigation = () => {
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   Admin
+                </Button>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link to="/admin/terms">
+                <Button
+                  variant="ghost"
+                  className={`${
+                    isActive("/admin/terms")
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  } transition-all hover:bg-primary/5`}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Terms
                 </Button>
               </Link>
             )}

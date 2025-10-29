@@ -88,6 +88,7 @@ export type Database = {
           joined_at: string | null
           level: number | null
           looking_for_partner: boolean | null
+          project_description: string | null
           projects_count: number | null
           rank: number | null
           school_email: string | null
@@ -105,6 +106,7 @@ export type Database = {
           joined_at?: string | null
           level?: number | null
           looking_for_partner?: boolean | null
+          project_description?: string | null
           projects_count?: number | null
           rank?: number | null
           school_email?: string | null
@@ -122,6 +124,7 @@ export type Database = {
           joined_at?: string | null
           level?: number | null
           looking_for_partner?: boolean | null
+          project_description?: string | null
           projects_count?: number | null
           rank?: number | null
           school_email?: string | null
@@ -266,6 +269,36 @@ export type Database = {
           updated_at?: string
           url?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      terms_of_service: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          effective_date: string
+          id: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          id?: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          id?: string
+          updated_at?: string
+          version?: string
         }
         Relationships: []
       }

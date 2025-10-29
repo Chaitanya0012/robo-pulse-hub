@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
+import NetworkingDialog from "@/components/NetworkingDialog";
 import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail } from "lucide-react";
 import heroImage from "@/assets/hero-robotics.jpg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,9 +19,10 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, school_email')
+        .select('full_name, school_email, project_description')
         .eq('looking_for_partner', true)
         .not('school_email', 'is', null)
+        .not('project_description', 'is', null)
         .order('full_name');
       
       if (error) throw error;
@@ -131,14 +133,16 @@ const Index = () => {
       </section>
 
       {/* Looking for Partners Section */}
-      {partnersLooking && partnersLooking.length > 0 && (
-        <section className="py-20 px-4 bg-card/20">
-          <div className="container mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold mb-4">Looking for Project Partners</h2>
-              <p className="text-xl text-muted-foreground">Connect with fellow robotics enthusiasts</p>
-            </div>
-            <Card className="p-8 bg-card/50 backdrop-blur-sm border-border/50">
+      <section className="py-20 px-4 bg-card/20">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold mb-4">Project Networking</h2>
+            <p className="text-xl text-muted-foreground mb-4">Connect with fellow robotics enthusiasts</p>
+            {user && <NetworkingDialog />}
+          </div>
+          
+          {partnersLooking && partnersLooking.length > 0 && (
+            <Card className="p-8 bg-card/50 backdrop-blur-sm border-border/50 mt-8">
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {partnersLooking.map((partner, index) => (
                   <Card 
@@ -146,11 +150,12 @@ const Index = () => {
                     className="p-4 bg-gradient-to-br from-primary/5 to-secondary/5 border-primary/20 hover:border-primary/40 transition-all"
                   >
                     <h3 className="font-semibold mb-2">{partner.full_name}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">{partner.project_description}</p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4" />
+                      <Mail className="h-4 w-4 flex-shrink-0" />
                       <a 
                         href={`mailto:${partner.school_email}`}
-                        className="hover:text-primary transition-colors"
+                        className="hover:text-primary transition-colors truncate"
                       >
                         {partner.school_email}
                       </a>
@@ -159,9 +164,15 @@ const Index = () => {
                 ))}
               </div>
             </Card>
-          </div>
-        </section>
-      )}
+          )}
+          
+          {(!partnersLooking || partnersLooking.length === 0) && (
+            <Card className="p-12 bg-card/50 backdrop-blur-sm border-border/50 mt-8 text-center">
+              <p className="text-muted-foreground">No one is currently looking for partners. Be the first!</p>
+            </Card>
+          )}
+        </div>
+      </section>
 
       {/* CTA Section */}
       <section className="py-20 px-4">
@@ -180,6 +191,20 @@ const Index = () => {
           </Card>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-4 border-t border-border/50">
+        <div className="container mx-auto text-center">
+          <p className="text-muted-foreground">
+            © 2024 RoboJourney. All rights reserved.
+          </p>
+          <div className="mt-2">
+            <Link to="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

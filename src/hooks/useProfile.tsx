@@ -17,6 +17,7 @@ export interface Profile {
   email_visible: boolean;
   looking_for_partner: boolean;
   school_email: string | null;
+  project_description: string | null;
 }
 
 export const useProfile = () => {
