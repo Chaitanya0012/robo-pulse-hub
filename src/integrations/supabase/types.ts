@@ -215,6 +215,113 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempts: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_correct: boolean
+          question_id: string
+          selected_answer: string
+          time_taken: number | null
+          user_id: string
+          xp_earned: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_correct: boolean
+          question_id: string
+          selected_answer: string
+          time_taken?: number | null
+          user_id: string
+          xp_earned?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_correct?: boolean
+          question_id?: string
+          selected_answer?: string
+          time_taken?: number | null
+          user_id?: string
+          xp_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          category: string
+          correct_answer: string
+          created_at: string | null
+          difficulty: string
+          explanation: string
+          id: string
+          options: Json
+          question: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          correct_answer: string
+          created_at?: string | null
+          difficulty: string
+          explanation: string
+          id?: string
+          options: Json
+          question: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          correct_answer?: string
+          created_at?: string | null
+          difficulty?: string
+          explanation?: string
+          id?: string
+          options?: Json
+          question?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      quiz_streaks: {
+        Row: {
+          created_at: string | null
+          current_streak: number | null
+          id: string
+          last_quiz_date: string | null
+          longest_streak: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_quiz_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_streak?: number | null
+          id?: string
+          last_quiz_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       resource_ratings: {
         Row: {
           created_at: string
@@ -482,6 +589,17 @@ export type Database = {
           resources_created: number | null
           total_projects: number | null
           total_ratings: number | null
+        }
+        Relationships: []
+      }
+      quiz_stats: {
+        Row: {
+          accuracy_percentage: number | null
+          correct_answers: number | null
+          days_active: number | null
+          total_attempts: number | null
+          total_quiz_xp: number | null
+          user_id: string | null
         }
         Relationships: []
       }
