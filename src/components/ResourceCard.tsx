@@ -34,34 +34,26 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
     }
   };
 
-  const handleClick = (e: React.MouseEvent) => {
-    if (url) {
-      e.preventDefault();
-      e.stopPropagation();
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.click();
-    }
-  };
-
   return (
-    <div onClick={handleClick} className={url ? "cursor-pointer" : ""}>
-      <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 transition-all hover:shadow-glow-cyan hover:border-primary/50 hover:-translate-y-1 animate-fade-in group h-full">
-        <div className="flex items-start justify-between mb-3">
-          <div className="text-primary group-hover:animate-glow-pulse">
-            {getTypeIcon(type)}
-          </div>
-          <Badge variant="outline" className="text-xs">
-            {type}
-          </Badge>
+    <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 transition-all hover:shadow-glow-cyan hover:border-primary/50 animate-fade-in group h-full">
+      <div className="flex items-start justify-between mb-3">
+        <div className="text-primary group-hover:animate-glow-pulse">
+          {getTypeIcon(type)}
         </div>
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-lg font-semibold flex-1">{title}</h3>
-          {url && <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />}
+        <Badge variant="outline" className="text-xs">
+          {type}
+        </Badge>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-lg font-semibold flex-1">{title}</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
+      {url && (
+        <div className="mb-4 p-3 bg-muted/50 rounded-md border border-border/50">
+          <p className="text-xs text-muted-foreground mb-1">Copy and paste this link in your browser:</p>
+          <p className="text-sm font-mono break-all select-all">"{url}"</p>
         </div>
-        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
+      )}
         {ratingCount > 0 && (
           <div className="flex items-center gap-1 mb-3 text-sm">
             <Star className="h-4 w-4 fill-primary text-primary" />
@@ -78,9 +70,8 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
               {difficulty}
             </Badge>
           </div>
-        </div>
-      </Card>
-    </div>
+      </div>
+    </Card>
   );
 };
 
