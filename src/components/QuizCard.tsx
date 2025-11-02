@@ -117,12 +117,13 @@ const QuizCard = ({ question, onAnswer, questionNumber, totalQuestions }: QuizCa
       <div className="space-y-3 mb-6">
         {question.options.map((option, index) => (
           <button
-            key={index}
+            key={`${question.id}-${index}`}
+            type="button"
             onClick={() => handleAnswerSelect(option)}
             disabled={showResult}
-            className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-300 ${getOptionStyle(option)} ${!showResult && 'hover-lift cursor-pointer'}`}
+            className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-300 ${getOptionStyle(option)} ${!showResult && 'hover-lift cursor-pointer'} disabled:cursor-not-allowed`}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 pointer-events-none">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold">
                 {String.fromCharCode(65 + index)}
               </div>
