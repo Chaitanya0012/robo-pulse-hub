@@ -115,28 +115,29 @@ const QuizCard = ({ question, onAnswer, questionNumber, totalQuestions }: QuizCa
 
       {/* Options */}
       <div className="space-y-3 mb-6">
-        {question.options.map((option, index) => (
-          <button
-            key={`${question.id}-${index}`}
-            type="button"
-            onClick={() => handleAnswerSelect(option)}
-            disabled={showResult}
-            className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-300 ${getOptionStyle(option)} ${!showResult && 'hover-lift cursor-pointer'} disabled:cursor-not-allowed`}
-          >
-            <div className="flex items-center gap-4 pointer-events-none">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold">
-                {String.fromCharCode(65 + index)}
+        {question.options.map((option, index) => {
+          const optionText = typeof option === 'string' ? option : String(option);
+          return (
+            <div
+              key={`${question.id}-${index}`}
+              onClick={() => !showResult && handleAnswerSelect(optionText)}
+              className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-300 ${getOptionStyle(optionText)} ${!showResult ? 'hover-lift cursor-pointer' : 'cursor-default'}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold">
+                  {String.fromCharCode(65 + index)}
+                </div>
+                <span className="text-lg">{optionText}</span>
+                {showResult && optionText === question.correct_answer && (
+                  <CheckCircle2 className="ml-auto h-6 w-6 text-success animate-scale-in" />
+                )}
+                {showResult && selectedAnswer === optionText && optionText !== question.correct_answer && (
+                  <XCircle className="ml-auto h-6 w-6 text-destructive animate-scale-in" />
+                )}
               </div>
-              <span className="text-lg">{option}</span>
-              {showResult && option === question.correct_answer && (
-                <CheckCircle2 className="ml-auto h-6 w-6 text-success animate-scale-in" />
-              )}
-              {showResult && selectedAnswer === option && option !== question.correct_answer && (
-                <XCircle className="ml-auto h-6 w-6 text-destructive animate-scale-in" />
-              )}
             </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Explanation */}
