@@ -17,6 +17,7 @@ import AdminTerms from "./pages/AdminTerms";
 import AdminBadges from "./pages/AdminBadges";
 import Quiz from "./pages/Quiz";
 import Learn from "./pages/Learn";
+import Simulator from "./pages/Simulator";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/learn" element={<Learn />} />
+            <Route path="/simulator" element={<Simulator />} />
             <Route path="/quiz" element={<Quiz />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/profile" element={<Profile />} />
