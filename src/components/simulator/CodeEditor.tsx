@@ -11,13 +11,13 @@ export const CodeEditor = ({ value, onChange, readOnly = false }: CodeEditorProp
   const { theme } = useTheme();
 
   return (
-    <div className="h-[400px] border rounded-md overflow-hidden">
+    <div className="h-[450px] border border-border/50 rounded-md overflow-hidden bg-background/95 backdrop-blur shadow-glow-cyan/20">
       <Editor
         height="100%"
         defaultLanguage="javascript"
         value={value}
         onChange={(value) => onChange(value || "")}
-        theme={theme === "dark" ? "vs-dark" : "light"}
+        theme="vs-dark"
         options={{
           readOnly,
           minimap: { enabled: false },
@@ -26,6 +26,12 @@ export const CodeEditor = ({ value, onChange, readOnly = false }: CodeEditorProp
           scrollBeyondLastLine: false,
           automaticLayout: true,
           tabSize: 2,
+          fontFamily: "'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+          fontLigatures: true,
+          cursorBlinking: "smooth",
+          cursorSmoothCaretAnimation: "on",
+          smoothScrolling: true,
+          padding: { top: 16, bottom: 16 },
         }}
       />
     </div>

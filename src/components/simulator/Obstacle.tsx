@@ -15,7 +15,12 @@ export const Obstacle = ({ position, size }: ObstacleProps) => {
   return (
     <mesh ref={ref as any} castShadow receiveShadow>
       <boxGeometry args={size} />
-      <meshStandardMaterial color="#8B4513" />
+      <meshStandardMaterial 
+        color="#d4a574"
+        roughness={0.8}
+        metalness={0.2}
+        envMapIntensity={0.5}
+      />
     </mesh>
   );
 };

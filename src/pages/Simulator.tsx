@@ -61,52 +61,88 @@ export default function Simulator() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/95">
       <Navigation />
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-2">Robot Simulator</h1>
-          <p className="text-muted-foreground">
+        {/* Header */}
+        <div className="mb-8 animate-slide-up">
+          <h1 className="text-5xl font-bold mb-3 text-shimmer">
+            Robot Simulator
+          </h1>
+          <p className="text-lg text-muted-foreground flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-primary animate-glow-pulse" />
             Program and test your robot in a 3D physics simulation
           </p>
         </div>
 
-        <div className="flex gap-4 mb-4">
-          <Button onClick={handleRun} variant={isRunning ? "destructive" : "default"}>
+        {/* Control Panel */}
+        <div className="flex gap-3 mb-6 animate-fade-in">
+          <Button 
+            onClick={handleRun} 
+            size="lg"
+            className={isRunning ? "shadow-glow-purple" : "shadow-glow-cyan"}
+            variant={isRunning ? "destructive" : "default"}
+          >
             {isRunning ? (
               <>
                 <Square className="w-4 h-4 mr-2" />
-                Stop
+                Stop Simulation
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2" />
-                Run
+                Run Simulation
               </>
             )}
           </Button>
-          <Button onClick={handleReset} variant="outline">
+          <Button onClick={handleReset} variant="outline" size="lg" className="glass-card">
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">Code Editor</h2>
-            <CodeEditor value={code} onChange={setCode} readOnly={isRunning} />
-          </Card>
+        {/* Main Layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Code Editor - Takes 2 columns */}
+          <div className="xl:col-span-2 space-y-6">
+            <div className="glass-card p-6 rounded-lg glow-border animate-reveal">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <span className="w-1 h-6 bg-primary rounded-full" />
+                  Code Editor
+                </h2>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {isRunning ? "READ ONLY" : "EDIT MODE"}
+                </span>
+              </div>
+              <CodeEditor value={code} onChange={setCode} readOnly={isRunning} />
+            </div>
 
-          <div className="space-y-4">
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">3D Simulation</h2>
+            {/* 3D Simulation */}
+            <div className="glass-card p-6 rounded-lg glow-border animate-reveal" style={{ animationDelay: '0.1s' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  <span className="w-1 h-6 bg-secondary rounded-full" />
+                  3D Simulation
+                </h2>
+                <div className="flex items-center gap-2 text-xs font-mono text-primary">
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  LIVE
+                </div>
+              </div>
               <SimulatorCanvas telemetry={telemetry} />
-            </Card>
+            </div>
+          </div>
 
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">Telemetry</h2>
+          {/* Telemetry Panel - 1 column */}
+          <div className="xl:col-span-1 animate-reveal" style={{ animationDelay: '0.2s' }}>
+            <div className="sticky top-4">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-1 h-6 bg-accent rounded-full" />
+                <h2 className="text-xl font-bold text-foreground">Telemetry</h2>
+              </div>
               <TelemetryPanel telemetry={telemetry} />
-            </Card>
+            </div>
           </div>
         </div>
       </main>
