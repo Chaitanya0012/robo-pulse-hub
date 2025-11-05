@@ -31,6 +31,8 @@ export const DifferentialRobot = ({ telemetry }: DifferentialRobotProps) => {
 
   // Update physics based on motor commands
   useFrame(() => {
+    if (!bodyApi.velocity || !bodyApi.angularVelocity) return;
+    
     const { left, right } = velocityRef.current;
     
     // Differential drive kinematics
