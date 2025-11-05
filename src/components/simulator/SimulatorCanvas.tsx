@@ -75,13 +75,11 @@ export const SimulatorCanvas = ({ telemetry }: SimulatorCanvasProps) => {
         
         {/* Grid with futuristic style */}
         <Grid 
-          args={[20, 20]} 
           cellSize={0.5} 
           cellColor="#00d4ff" 
           sectionColor="#7c3aed" 
           fadeDistance={25}
           fadeStrength={1.5}
-          infiniteGrid={false}
         />
         
         <OrbitControls 
