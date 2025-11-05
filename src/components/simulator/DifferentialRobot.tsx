@@ -29,6 +29,9 @@ export const DifferentialRobot = ({ telemetry }: DifferentialRobotProps) => {
     };
   }, [telemetry.leftMotor, telemetry.rightMotor]);
 
+  // Track rotation
+  const rotationRef = useRef(0);
+
   // Update physics based on motor commands
   useFrame(() => {
     if (!bodyApi.velocity || !bodyApi.angularVelocity) return;
@@ -36,21 +39,38 @@ export const DifferentialRobot = ({ telemetry }: DifferentialRobotProps) => {
     const { left, right } = velocityRef.current;
     
     // Differential drive kinematics
-    const linearVelocity = ((left + right) / 2) * 0.5; // Scale factor for speed
-    const angularVelocity = ((right - left) / wheelBase) * 0.5;
+    const wheelCircumference = 2 * Math.PI * wheelRadius;
+    const linearVelocity = ((left + right) / 2) * wheelCircumference; // meters per second
+    const angularVelocity = ((right - left) * wheelCircumference) / wheelBase;
 
-    // Apply velocity to the robot body
-    bodyApi.velocity.set(
-      linearVelocity * Math.sin(telemetry.rotation),
-      0,
-      linearVelocity * Math.cos(telemetry.rotation)
-    );
+    // Update rotation
+    rotationRef.current += angularVelocity * 0.016; // Approximate delta time
+
+    // Apply velocity in world coordinates
+    const forwardX = Math.sin(rotationRef.current) * linearVelocity;
+    const forwardZ = Math.cos(rotationRef.current) * linearVelocity;
     
+    bodyApi.velocity.set(forwardX, 0, forwardZ);
     bodyApi.angularVelocity.set(0, angularVelocity, 0);
   });
 
   return (
     <group>
+      {/* Floating labels */}
+      <group>
+        {/* Direction label */}
+        <mesh position={[0, 0.15, -0.05]}>
+          <planeGeometry args={[0.12, 0.03]} />
+          <meshBasicMaterial color="#00d4ff" transparent opacity={0.7} />
+        </mesh>
+        
+        {/* Sensor label */}
+        <mesh position={[0, 0.12, -0.08]}>
+          <planeGeometry args={[0.1, 0.025]} />
+          <meshBasicMaterial color="#ff3366" transparent opacity={0.7} />
+        </mesh>
+      </group>
+
       {/* Robot body - Anodized aluminum aesthetic */}
       <mesh ref={bodyRef as any} castShadow receiveShadow>
         <boxGeometry args={[0.15, 0.05, 0.1]} />
