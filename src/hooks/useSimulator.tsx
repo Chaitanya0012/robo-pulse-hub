@@ -94,7 +94,6 @@ export const useSimulator = () => {
         
         self.onmessage = function(e) {
           if (e.data.type === 'init') {
-            // Initialize worker
             console.log('Worker initialized');
           } else if (e.data.type === 'execute') {
             try {
@@ -102,6 +101,7 @@ export const useSimulator = () => {
               const setMotor = (left, right) => {
                 motorState = { left, right };
                 self.postMessage({ type: 'setMotor', left, right });
+                console.log('Setting motors:', left, right);
               };
               
               const readSensor = (name) => {
@@ -127,7 +127,10 @@ export const useSimulator = () => {
               const userFunction = new Function('setMotor', 'readSensor', 'sleep', 'console', e.data.code);
               userFunction(setMotor, readSensor, sleep, console);
               
+              self.postMessage({ type: 'complete' });
+              
             } catch (error) {
+              console.error('Worker error:', error);
               self.postMessage({ type: 'error', message: error.message });
             }
           }
@@ -138,7 +141,9 @@ export const useSimulator = () => {
       const worker = new Worker(URL.createObjectURL(blob));
 
       worker.onmessage = (e) => {
+        console.log('Main thread received:', e.data.type);
         if (e.data.type === "setMotor") {
+          console.log('Updating motors:', e.data.left, e.data.right);
           setMotor(e.data.left, e.data.right);
         } else if (e.data.type === "readSensor") {
           readSensor(e.data.name).then(value => {
@@ -148,6 +153,8 @@ export const useSimulator = () => {
               value,
             });
           });
+        } else if (e.data.type === "complete") {
+          console.log('Code execution completed');
         } else if (e.data.type === "error") {
           toast({
             title: "Code Error",
@@ -159,6 +166,7 @@ export const useSimulator = () => {
       };
 
       worker.onerror = (error) => {
+        console.error('Worker error:', error);
         toast({
           title: "Execution Error",
           description: error.message,
@@ -172,6 +180,7 @@ export const useSimulator = () => {
 
       workerRef.current = worker;
     } catch (error) {
+      console.error('Failed to start worker:', error);
       toast({
         title: "Failed to start",
         description: error instanceof Error ? error.message : "Unknown error",
