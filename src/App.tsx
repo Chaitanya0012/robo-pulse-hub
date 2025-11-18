@@ -18,6 +18,7 @@ import AdminBadges from "./pages/AdminBadges";
 import QuizAdvanced from "./pages/QuizAdvanced";
 import QuizDashboard from "./pages/QuizDashboard";
 import AdaptiveLearning from "./pages/AdaptiveLearning";
+import ArticleLearning from "./pages/ArticleLearning";
 import Learn from "./pages/Learn";
 import Simulator from "./pages/Simulator";
 import Auth from "./pages/Auth";
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/quiz" element={<QuizAdvanced />} />
             <Route path="/quiz-dashboard" element={<QuizDashboard />} />
             <Route path="/adaptive-learning" element={<AdaptiveLearning />} />
+            <Route path="/article-learning" element={<ArticleLearning />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/analytics" element={<Analytics />} />
