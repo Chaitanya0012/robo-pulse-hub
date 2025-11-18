@@ -15,7 +15,7 @@ import Credits from "./pages/Credits";
 import TermsOfService from "./pages/TermsOfService";
 import AdminTerms from "./pages/AdminTerms";
 import AdminBadges from "./pages/AdminBadges";
-import Quiz from "./pages/Quiz";
+import QuizAdvanced from "./pages/QuizAdvanced";
 import Learn from "./pages/Learn";
 import Simulator from "./pages/Simulator";
 import Auth from "./pages/Auth";
@@ -36,7 +36,7 @@ const App = () => (
             <Route path="/resources" element={<Resources />} />
             <Route path="/learn" element={<Learn />} />
             <Route path="/simulator" element={<Simulator />} />
-            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/quiz" element={<QuizAdvanced />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/analytics" element={<Analytics />} />
