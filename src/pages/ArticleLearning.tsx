@@ -5,8 +5,10 @@ import Navigation from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, CheckCircle2, Trophy, ArrowLeft } from "lucide-react";
+import { BookOpen, CheckCircle2, Trophy, ArrowLeft, Edit3, Save, AlertCircle } from "lucide-react";
 import { ArticleQuizCard } from "@/components/ArticleQuizCard";
+import { MistakesList } from "@/components/MistakesList";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -34,6 +36,9 @@ interface QuizQuestion {
 export default function ArticleLearning() {
   const [selectedArticle, setSelectedArticle] = useState<Lesson | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
+  const [showMistakes, setShowMistakes] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState("");
   const [completedArticles, setCompletedArticles] = useState<Set<string>>(new Set());
 
   const { data: lessons, isLoading: lessonsLoading } = useQuery({
@@ -58,11 +63,11 @@ export default function ArticleLearning() {
     queryKey: ['article-questions', selectedArticle?.title],
     enabled: !!selectedArticle,
     queryFn: async () => {
-      const articlePrefix = `Article ${selectedArticle!.order_index}:`;
+      const articleNum = selectedArticle!.order_index;
       const { data, error } = await supabase
         .from('quiz_questions')
         .select('*')
-        .like('category', `${articlePrefix}%`);
+        .ilike('category', `Article ${articleNum}:%`);
       
       if (error) throw error;
       return data.map(q => ({
@@ -84,6 +89,34 @@ export default function ArticleLearning() {
   const handleBackToArticles = () => {
     setSelectedArticle(null);
     setShowQuiz(false);
+    setIsEditing(false);
+  };
+
+  const handleSaveArticle = async () => {
+    if (!selectedArticle) return;
+    
+    try {
+      const { error } = await supabase
+        .from('robotics_articles')
+        .update({ content: editedContent })
+        .eq('id', selectedArticle.id);
+
+      if (error) throw error;
+      
+      toast.success("Article saved successfully!");
+      setIsEditing(false);
+      setSelectedArticle({ ...selectedArticle, content: editedContent });
+    } catch (error: any) {
+      toast.error("Failed to save article");
+      console.error(error);
+    }
+  };
+
+  const handleStartEditing = () => {
+    if (selectedArticle) {
+      setEditedContent(selectedArticle.content);
+      setIsEditing(true);
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -145,17 +178,44 @@ export default function ArticleLearning() {
           </Button>
           
           <Card className="p-8">
-            <div className="mb-6">
-              <Badge className={getDifficultyColor(selectedArticle.difficulty)} variant="secondary">
-                {selectedArticle.difficulty}
-              </Badge>
-              <h1 className="text-3xl font-bold mt-4 mb-2">{selectedArticle.title}</h1>
-              <p className="text-muted-foreground">Article {selectedArticle.order_index} · {selectedArticle.category}</p>
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <Badge className={getDifficultyColor(selectedArticle.difficulty)} variant="secondary">
+                  {selectedArticle.difficulty}
+                </Badge>
+                <h1 className="text-3xl font-bold mt-4 mb-2">{selectedArticle.title}</h1>
+                <p className="text-muted-foreground">Article {selectedArticle.order_index} · {selectedArticle.category}</p>
+              </div>
+              {!isEditing && (
+                <Button variant="outline" size="sm" onClick={handleStartEditing}>
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
             </div>
             
-            <div className="prose prose-slate dark:prose-invert max-w-none mb-8">
-              <div className="whitespace-pre-wrap">{selectedArticle.content}</div>
-            </div>
+            {isEditing ? (
+              <div className="mb-8">
+                <RichTextEditor 
+                  content={editedContent}
+                  onChange={setEditedContent}
+                  editable={true}
+                />
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={handleSaveArticle}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="prose prose-slate dark:prose-invert max-w-none mb-8">
+                <div className="whitespace-pre-wrap">{selectedArticle.content}</div>
+              </div>
+            )}
 
             <div className="flex gap-4 pt-6 border-t">
               <Button 
@@ -170,10 +230,29 @@ export default function ArticleLearning() {
                 variant="outline"
                 size="lg"
               >
-                Back to Articles
+                Back
               </Button>
             </div>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (showMistakes) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <Button
+            variant="ghost"
+            className="mb-6"
+            onClick={() => setShowMistakes(false)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Articles
+          </Button>
+          <MistakesList />
         </div>
       </div>
     );
@@ -184,13 +263,19 @@ export default function ArticleLearning() {
       <Navigation />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-3">
-            Diagnostic Robotics Tutor
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Learn robotics through real-world troubleshooting scenarios. Master component diagnosis and problem-solving.
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold mb-3">
+              Diagnostic Robotics Tutor
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Learn through articles and test your knowledge
+            </p>
+          </div>
+          <Button onClick={() => setShowMistakes(true)} variant="outline" size="lg">
+            <AlertCircle className="h-5 w-5 mr-2" />
+            View My Mistakes
+          </Button>
         </div>
 
         {/* Progress Stats */}
