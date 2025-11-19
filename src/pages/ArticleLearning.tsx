@@ -36,16 +36,20 @@ export default function ArticleLearning() {
   const [completedArticles, setCompletedArticles] = useState<Set<string>>(new Set());
 
   const { data: lessons, isLoading: lessonsLoading } = useQuery({
-    queryKey: ['robotics-lessons'],
+    queryKey: ['robotics-articles'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('lessons')
+        .from('robotics_articles')
         .select('*')
-        .eq('category', 'Robotics Fundamentals')
         .order('order_index', { ascending: true });
       
       if (error) throw error;
-      return data as Lesson[];
+      return data.map(article => ({
+        ...article,
+        difficulty: article.difficulty_level,
+        description: article.content.substring(0, 150) + '...',
+        level: 1 // Default level for articles
+      })) as Lesson[];
     },
   });
 
