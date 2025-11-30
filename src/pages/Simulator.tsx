@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio } from "lucide-react";
+import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Bug, Activity } from "lucide-react";
 import Navigation from "@/components/Navigation";
-import Editor from "@monaco-editor/react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
+import { TelemetryPanel } from "@/components/simulator/TelemetryPanel";
+import { CodeEditor } from "@/components/simulator/CodeEditor";
+import { useSimulator } from "@/hooks/useSimulator";
 
 const defaultCode = `// Arduino-style robot code
 void setup() {
@@ -20,6 +23,7 @@ void loop() {
   digitalWrite(LED_BUILTIN, LOW);
   delay(500);
 
+  // Basic forward motion
   digitalWrite(2, HIGH);
   digitalWrite(3, LOW);
   delay(1000);
@@ -50,49 +54,142 @@ const boardPresets = {
 
 const Simulator = () => {
   const [code, setCode] = useState(defaultCode);
-  const [isRunning, setIsRunning] = useState(false);
   const [serialOutput, setSerialOutput] = useState<string[]>([]);
   const [ledState, setLedState] = useState(false);
   const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
+  const [compileFeedback, setCompileFeedback] = useState<{ ok: boolean; errors: string[]; warnings: string[] } | null>(null);
+
+  const { isRunning, telemetry, startSimulation, stopSimulation, resetSimulation, updateTelemetry } = useSimulator();
+  const telemetryRef = useRef(telemetry);
+
+  const simInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ledInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentBoard = useMemo(() => boardPresets[board], [board]);
 
   useEffect(() => {
-    if (!isRunning) return;
+    telemetryRef.current = telemetry;
+  }, [telemetry]);
 
-    const messages = [
-      "[Boot] MCU ready. Uploading sketch...",
-      "[Info] Pins initialized",
-      "[Serial] Robot moving...",
-      "[Sensor] Ultrasonic ping 24cm",
-      "[Info] LED toggled",
-    ];
+  const appendSerial = (line: string) => {
+    setSerialOutput((prev) => [...prev.slice(-12), line]);
+  };
 
-    let step = 0;
-    const interval = setInterval(() => {
-      setSerialOutput((prev) => [...prev, messages[step % messages.length]]);
-      setLedState((prev) => !prev);
-      step += 1;
-    }, 900);
+  const analyzeSketch = (sketch: string) => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
 
-    return () => clearInterval(interval);
-  }, [isRunning]);
+    if (!sketch.includes("void setup")) errors.push("Missing setup() function");
+    if (!sketch.includes("void loop")) errors.push("Missing loop() function");
+
+    const braceBalance = sketch.split("").reduce((acc, char) => {
+      if (char === "{") return acc + 1;
+      if (char === "}") return acc - 1;
+      return acc;
+    }, 0);
+    if (braceBalance !== 0) errors.push("Unbalanced braces detected");
+
+    if (/TODO|fixme|\?\?\?/i.test(sketch)) warnings.push("Sketch contains TODO/placeholder text");
+    if (!/pinMode\s*\(/i.test(sketch)) warnings.push("No pinMode calls found – pins may float");
+
+    const togglesLed = /digitalWrite\s*\(\s*LED_BUILTIN/i.test(sketch);
+    const usesSerial = /Serial\./i.test(sketch);
+    const motorCommands = (sketch.match(/digitalWrite\s*\(\s*(2|3)/g) || []).length;
+    const ultrasonicReads = /ultrasonic|ping|distance/i.test(sketch);
+
+    return {
+      ok: errors.length === 0,
+      errors,
+      warnings,
+      profile: {
+        togglesLed,
+        usesSerial,
+        motorCommands,
+        ultrasonicReads,
+      },
+    };
+  };
+
+  const clearTimers = () => {
+    if (simInterval.current) {
+      clearInterval(simInterval.current);
+      simInterval.current = null;
+    }
+    if (ledInterval.current) {
+      clearInterval(ledInterval.current);
+      ledInterval.current = null;
+    }
+  };
 
   const handleRun = () => {
-    setIsRunning((prev) => {
-      const next = !prev;
-      if (next) {
-        setSerialOutput((prevOutput) => [...prevOutput, "▶ Simulation started"]);
+    const compilation = analyzeSketch(code);
+    setCompileFeedback(compilation);
+
+    clearTimers();
+
+    if (!compilation.ok) {
+      stopSimulation();
+      setLedState(false);
+      appendSerial("⛔ Build failed: " + compilation.errors.join(" · "));
+      return;
+    }
+
+    startSimulation();
+    appendSerial(`[Boot] ${currentBoard.name} connected`);
+    appendSerial("[Build] Sketch verified ✔");
+    compilation.warnings.forEach((w) => appendSerial(`⚠ Warning: ${w}`));
+    appendSerial("[Loop] Execution started...");
+
+    let tick = 0;
+    simInterval.current = setInterval(() => {
+      tick += 1;
+      const snapshot = telemetryRef.current;
+      const left = Math.sin(tick / 6) * (compilation.profile.motorCommands ? 0.9 : 0.3);
+      const right = Math.cos(tick / 6) * (compilation.profile.motorCommands ? 0.9 : 0.3);
+
+      updateTelemetry({
+        leftMotor: left,
+        rightMotor: right,
+        rotation: snapshot.rotation + 0.015 * (compilation.profile.motorCommands ? 1 : 0.4),
+        position: [
+          snapshot.position[0] + left * 0.02,
+          snapshot.position[1],
+          snapshot.position[2] + right * 0.02,
+        ],
+        sensors: { ultrasonic: Math.max(0.15, 2 - (Math.abs(left) + Math.abs(right))) },
+      });
+
+      if (compilation.profile.usesSerial) {
+        appendSerial(`[Serial] Tick ${tick} | motors ${left.toFixed(2)}/${right.toFixed(2)}`);
       }
-      return next;
-    });
+      if (compilation.profile.ultrasonicReads && tick % 3 === 0) {
+        appendSerial(`[Sensor] Ultrasonic ${telemetry.sensors.ultrasonic.toFixed(2)}m`);
+      }
+    }, 900);
+
+    if (compilation.profile.togglesLed) {
+      ledInterval.current = setInterval(() => setLedState((prev) => !prev), 500);
+    } else {
+      setLedState(false);
+    }
   };
 
   const handleReset = () => {
-    setIsRunning(false);
+    clearTimers();
+    resetSimulation();
     setLedState(false);
     setSerialOutput([]);
+    setCompileFeedback(null);
   };
+
+  const handlePause = () => {
+    clearTimers();
+    stopSimulation();
+    setLedState(false);
+    appendSerial("■ Simulation paused");
+  };
+
+  useEffect(() => () => clearTimers(), []);
 
   return (
     <div className="min-h-screen bg-gradient-cosmic">
@@ -126,11 +223,14 @@ const Simulator = () => {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="p-6 glass-card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Code Editor</h2>
+          <Card className="p-6 glass-card space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-xl font-semibold">Code Editor</h2>
+                <p className="text-xs text-muted-foreground">We lint your sketch before running to avoid silent failures.</p>
+              </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleRun} className={isRunning ? "bg-orange-500" : "bg-green-500"}>
+                <Button size="sm" onClick={isRunning ? handlePause : handleRun} className={isRunning ? "bg-orange-500" : "bg-green-500"}>
                   {isRunning ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                   {isRunning ? "Pause" : "Run"}
                 </Button>
@@ -141,19 +241,24 @@ const Simulator = () => {
               </div>
             </div>
 
-            <div className="border border-border/50 rounded-lg overflow-hidden h-[500px]">
-              <Editor
-                height="100%"
-                defaultLanguage="cpp"
-                theme="vs-dark"
-                value={code}
-                onChange={(value) => setCode(value || "")}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                }}
-              />
-            </div>
+            <CodeEditor value={code} onChange={setCode} language="cpp" />
+
+            {compileFeedback && (
+              <div className={`rounded-lg border p-3 text-sm ${compileFeedback.ok ? "border-green-500/40 bg-green-500/5" : "border-destructive/40 bg-destructive/5"}`}>
+                <div className="flex items-center gap-2 font-semibold">
+                  {compileFeedback.ok ? <Activity className="h-4 w-4 text-green-500" /> : <Bug className="h-4 w-4 text-destructive" />}
+                  {compileFeedback.ok ? "Sketch ready" : "Compilation failed"}
+                </div>
+                <ul className="mt-2 space-y-1 list-disc list-inside text-muted-foreground">
+                  {compileFeedback.errors.map((err, idx) => (
+                    <li key={idx} className="text-destructive">{err}</li>
+                  ))}
+                  {compileFeedback.warnings.map((warn, idx) => (
+                    <li key={`w-${idx}`} className="text-amber-400">{warn}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
 
           <div className="space-y-6">
@@ -177,28 +282,7 @@ const Simulator = () => {
                       <Zap className="h-3 w-3" /> 5V rail
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Digital Pins</div>
-                      <div className="grid grid-cols-5 gap-2 text-[10px] text-white/90">
-                        {[...Array(currentBoard.lanes).keys()].map((lane) => (
-                          <div key={lane} className="px-2 py-1 rounded bg-white/10 border border-white/5 text-center">
-                            D{lane + 2}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Power & Analog</div>
-                      <div className="flex flex-wrap gap-2 text-[10px] text-white/90">
-                        {["5V", "3V3", "GND", "VIN", "A0", "A1", "A2", "A3", "A4", "A5"].map((label) => (
-                          <div key={label} className="px-2 py-1 rounded bg-white/10 border border-white/5">
-                            {label}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <SimulatorCanvas telemetry={telemetry} />
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${ledState ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"}`} />
                     <div className="text-white text-sm">
@@ -221,6 +305,17 @@ const Simulator = () => {
                   ))
                 )}
               </div>
+            </Card>
+
+            <Card className="p-6 glass-card">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold">Live Telemetry</h2>
+                  <p className="text-xs text-muted-foreground">Motors and sensors update when the sketch is valid.</p>
+                </div>
+                <div className="text-xs px-3 py-1 rounded-full border border-primary/40 text-primary bg-primary/10">{boardPresets[board].name}</div>
+              </div>
+              <TelemetryPanel telemetry={telemetry} />
             </Card>
           </div>
         </div>
