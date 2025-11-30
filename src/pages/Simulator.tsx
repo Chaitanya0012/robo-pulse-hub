@@ -5,10 +5,13 @@ import Editor from "@monaco-editor/react";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Bug, Sparkles } from "lucide-react";
+import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Brain } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import Editor from "@monaco-editor/react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const defaultCode = `// Arduino-style robot code
 void setup() {
@@ -25,7 +28,45 @@ type CompileStatus = {
   message: string;
 };
 
+const analogPinLabels = ["A0", "A1", "A2", "A3", "A4", "A5"];
+const powerAndAnalogPins = ["5V", "3V3", "GND", "VIN", ...analogPinLabels];
+
+const extractUsedPins = (source: string) => {
+  const digitalPins = new Set<number>();
+  const analogPins = new Set<string>();
+
+  const pinCallPattern = /(pinMode|digitalWrite|analogWrite|digitalRead|analogRead)\s*\(\s*([A-Za-z0-9_]+)/g;
+  const analogLabelPattern = /A\d+/g;
+
+  for (const match of source.matchAll(pinCallPattern)) {
+    const pinToken = match[2];
+    if (!pinToken) continue;
+
+    if (pinToken.toUpperCase() === "LED_BUILTIN") {
+      digitalPins.add(13);
+      continue;
+    }
+
+    if (pinToken.toUpperCase().startsWith("A")) {
+      analogPins.add(pinToken.toUpperCase());
+      continue;
+    }
+
+    const parsed = parseInt(pinToken, 10);
+    if (!Number.isNaN(parsed)) {
+      digitalPins.add(parsed);
+    }
+  }
+
+  for (const match of source.matchAll(analogLabelPattern)) {
+    analogPins.add(match[0].toUpperCase());
+  }
+
+  return { digitalPins: Array.from(digitalPins).sort((a, b) => a - b), analogPins: Array.from(analogPins) };
+};
+
 const Simulator = () => {
+  const { user } = useAuth();
   const [code, setCode] = useState(defaultCode);
   const [isRunning, setIsRunning] = useState(false);
   const [serialOutput, setSerialOutput] = useState<string[]>([
@@ -33,67 +74,71 @@ const Simulator = () => {
   ]);
   const [ledState, setLedState] = useState(false);
   const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
-  const [diagnostics, setDiagnostics] = useState<{
-    errors: string[];
-    warnings: string[];
-    signals: string[];
-    ledUsage: boolean;
-    script: string[];
-  }>({
-    errors: [],
-    warnings: [],
-    signals: [],
-    ledUsage: true,
-    script: [],
-  });
-  const [simulationState, setSimulationState] = useState<
-    "idle" | "running" | "paused" | "error"
-  >("idle");
+  const [digitalUsedPins, setDigitalUsedPins] = useState<number[]>([]);
+  const [analogUsedPins, setAnalogUsedPins] = useState<string[]>([]);
+  const [tutorGuidance, setTutorGuidance] = useState<string>("");
+  const [isTutorAnalyzing, setIsTutorAnalyzing] = useState(false);
 
   const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
 
-  const analyzeCode = (sketch: string) => {
-    const normalized = sketch.toLowerCase();
+  const validateCode = () => {
     const errors: string[] = [];
-    const warnings: string[] = [];
-    const signals: string[] = [];
-    const script: string[] = [];
 
-    if (!normalized.includes("setup")) {
-      errors.push("Missing setup() function – pins are never initialized.");
-    }
-    if (!normalized.includes("loop")) {
-      errors.push("Missing loop() function – the firmware will exit immediately.");
-    }
-    if (!/serial\.(begin|print)/i.test(sketch)) {
-      warnings.push("No Serial usage detected – serial monitor will be quiet.");
-    }
-    if (!/pinmode\s*\(/i.test(sketch)) {
-      warnings.push("No pinMode calls found – pins may float in simulation.");
+    if (!/void\s+setup\s*\(/i.test(code)) {
+      errors.push("Missing setup() function to configure pins.");
     }
 
-    const digitalWrites = Array.from(
-      sketch.matchAll(/digitalWrite\s*\(([^,]+),\s*(HIGH|LOW)\)/gi)
-    ).map((match) => `${match[1].trim()} → ${match[2].toUpperCase()}`);
-
-    if (digitalWrites.length > 0) {
-      signals.push(`Detected ${digitalWrites.length} digital writes`);
-      script.push(...digitalWrites.map((dw) => `[Pins] digitalWrite ${dw}`));
+    if (!/void\s+loop\s*\(/i.test(code)) {
+      errors.push("Missing loop() function to run repeatedly.");
     }
 
-    const serialEvents = Array.from(
-      sketch.matchAll(/Serial\.(print|println)\s*\(([^)]+)\)/gi)
-    ).map((match) => match[2].trim());
+    const maxDigitalPin = currentBoard.lanes + 1;
+    digitalUsedPins.forEach((pin) => {
+      if (pin !== 13 && (pin < 2 || pin > maxDigitalPin)) {
+        errors.push(`Pin D${pin} is outside the available pins for ${currentBoard.name}.`);
+      }
+    });
 
-    if (serialEvents.length > 0) {
-      script.push(...serialEvents.map((msg) => `[Serial] ${msg.replace(/"/g, "")}`));
-    }
+    analogUsedPins.forEach((pin) => {
+      if (!analogPinLabels.includes(pin)) {
+        errors.push(`Analog pin ${pin} is not available on this board.`);
+      }
+    });
 
-    if (script.length === 0) {
-      script.push(
-        "[Loop] Cycle complete with no I/O – add Serial.println or digitalWrite for richer output."
-      );
+    return errors;
+  };
+
+  const requestTutorGuidance = async (errors: string[]) => {
+    setIsTutorAnalyzing(true);
+    setTutorGuidance("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          prompt: `You are helping a student debug a microcontroller sketch in a virtual simulator. Please DO NOT give the final code or numeric answers. Ask guiding questions and suggest checkpoints so the student can fix issues themselves.\n\nBoard: ${currentBoard.name}\nDetected problems:\n${errors.map((err) => `- ${err}`).join('\n')}\n\nHere is the current code:\n${code}\n\nRespond with 3-5 short prompts that lead the student to the fix, and end with one reflection question.`,
+          userId: user?.id,
+          action: 'chat'
+        }
+      });
+
+      if (error) throw error;
+      setTutorGuidance(data.response || "The tutor could not generate guidance right now.");
+    } catch (error: any) {
+      console.error("Tutor debug error", error);
+      toast.error(error.message || "Failed to get AI tutor guidance");
+    } finally {
+      setIsTutorAnalyzing(false);
     }
+  };
+
+  useEffect(() => {
+    const { digitalPins, analogPins } = extractUsedPins(code);
+    setDigitalUsedPins(digitalPins);
+    setAnalogUsedPins(analogPins);
+  }, [code]);
+
+  useEffect(() => {
+    if (!isRunning) return;
 
     return {
       errors,
@@ -119,44 +164,35 @@ const Simulator = () => {
     return () => clearInterval(interval);
   }, [diagnostics.ledUsage, diagnostics.script, isRunning]);
 
-  const handleRun = () => {
-    if (isRunning) {
-      setSimulationState("paused");
+  const handleRun = async () => {
+    const validationErrors = validateCode();
+
+    if (validationErrors.length > 0) {
       setIsRunning(false);
-      setSerialOutput((prev) => [...prev, "⏸️ Simulation paused"]);
-      return;
-    }
-
-    const result = analyzeCode(code);
-    setDiagnostics(result);
-
-    if (result.errors.length > 0) {
-      setSimulationState("error");
-      setSerialOutput((prev) => [
-        ...prev,
-        "⛔ Build failed – fix the issues below:",
-        ...result.errors.map((err) => `• ${err}`),
+      setSerialOutput((prevOutput) => [
+        ...prevOutput,
+        "⛔ Simulation blocked: fix the issues below",
+        ...validationErrors.map((err) => `- ${err}`),
       ]);
-      setIsRunning(false);
+      await requestTutorGuidance(validationErrors);
       return;
     }
 
-    setSerialOutput((prev) => [
-      ...prev,
-      "✅ Build succeeded. Streaming from virtual MCU...",
-      ...result.warnings.map((warn) => `⚠️ ${warn}`),
-      result.script[0],
-    ]);
-    setSimulationState("running");
-    setIsRunning(true);
+    setTutorGuidance("");
+    setIsRunning((prev) => {
+      const next = !prev;
+      if (next) {
+        setSerialOutput((prevOutput) => [...prevOutput, "▶ Simulation started"]);
+      }
+      return next;
+    });
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setLedState(false);
-    setDiagnostics({ errors: [], warnings: [], signals: [], ledUsage: true, script: [] });
-    setSimulationState("idle");
-    setSerialOutput(["🧹 Cleared. Paste code and hit Run to simulate again."]);
+    setSerialOutput([]);
+    setTutorGuidance("");
   };
 
   useEffect(() => {
@@ -294,8 +330,15 @@ const Simulator = () => {
                     <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
                       <div className="text-white/80 text-xs mb-2">Digital Pins</div>
                       <div className="grid grid-cols-5 gap-2 text-[10px] text-white/90">
-                        {[...Array(currentBoard.lanes).keys()].map(lane => (
-                          <div key={lane} className="px-2 py-1 rounded bg-white/10 border border-white/5 text-center">
+                        {[...Array(currentBoard.lanes).keys()].map((lane) => (
+                          <div
+                            key={lane}
+                            className={`px-2 py-1 rounded border text-center transition-colors duration-200 ${
+                              digitalUsedPins.includes(lane + 2)
+                                ? "bg-emerald-300 text-black border-white/60"
+                                : "bg-white/10 border-white/5"
+                            }`}
+                          >
                             D{lane + 2}
                           </div>
                         ))}
@@ -304,15 +347,22 @@ const Simulator = () => {
                     <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
                       <div className="text-white/80 text-xs mb-2">Power & Analog</div>
                       <div className="flex flex-wrap gap-2 text-[10px] text-white/90">
-                        {["5V", "3V3", "GND", "VIN", "A0", "A1", "A2", "A3", "A4", "A5"].map(label => (
-                          <div key={label} className="px-2 py-1 rounded bg-white/10 border border-white/5">
+                        {powerAndAnalogPins.map((label) => (
+                          <div
+                            key={label}
+                            className={`px-2 py-1 rounded border ${
+                              analogUsedPins.includes(label)
+                                ? "bg-emerald-300 text-black border-white/60"
+                                : "bg-white/10 border-white/5"
+                            }`}
+                          >
                             {label}
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
-                  <p className="text-[11px] text-white/80">Highlighted pins show what your code is touching.</p>
+                  <p className="text-[11px] text-white/80">Highlighted pins are in use in your sketch.</p>
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
@@ -389,6 +439,28 @@ const Simulator = () => {
                   </div>
                 )}
               </div>
+            </Card>
+
+            <Card className="p-6 glass-card">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">AI Tutor Debugger</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                When the simulator spots an issue, the AI tutor will ask guiding questions instead of giving the answer.
+              </p>
+              {isTutorAnalyzing ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <span>AI tutor is reviewing your code...</span>
+                </div>
+              ) : tutorGuidance ? (
+                <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+                  {tutorGuidance}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Run the simulator to see guided debugging tips here.</div>
+              )}
             </Card>
           </div>
         </div>

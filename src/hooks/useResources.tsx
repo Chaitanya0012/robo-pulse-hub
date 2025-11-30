@@ -45,22 +45,22 @@ export const useResources = () => {
   });
 
   const createResource = useMutation({
-    mutationFn: async (newResource: Omit<Resource, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_approved'>) => {
+    mutationFn: async (newResource: Omit<Resource, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       if (!user) throw new Error('Not authenticated');
 
       const { error } = await supabase
         .from('resources')
-        .insert({ ...newResource, user_id: user.id, is_approved: isModerator });
+        .insert({ ...newResource, user_id: user.id, is_approved: newResource.is_approved ?? false });
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['resources'] });
       toast({
         title: "Success",
-        description: isModerator
+        description: variables?.is_approved
           ? "Resource published successfully"
-          : "Submission sent for admin review",
+          : "Resource submitted for admin approval",
       });
     },
     onError: (error) => {
@@ -114,7 +114,7 @@ export const useResources = () => {
       queryClient.invalidateQueries({ queryKey: ['resources'] });
       toast({
         title: "Approved",
-        description: "Resource is now visible to students",
+        description: "Resource has been approved and published",
       });
     },
     onError: (error) => {
