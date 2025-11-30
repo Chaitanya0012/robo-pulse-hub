@@ -5,12 +5,28 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import Navigation from "@/components/Navigation";
 import CollaborationDialog from "@/components/CollaborationDialog";
-import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail, ArrowRight, Star, Gauge, Brain, Shield, Medal } from "lucide-react";
+import {
+  Zap,
+  Target,
+  Users,
+  TrendingUp,
+  Sparkles,
+  Rocket,
+  Mail,
+  ArrowRight,
+  Star,
+  Brain,
+  ShieldCheck,
+  Compass,
+  Activity,
+  MessageSquare,
+} from "lucide-react";
 import heroImage from "@/assets/hero-robotics.jpg";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { usePlatformStats } from "@/hooks/usePlatformStats";
-import { LEVEL_THRESHOLDS, XP_REWARDS } from "@/hooks/useXP";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const Index = () => {
   const { user } = useAuth();
@@ -41,37 +57,53 @@ const Index = () => {
     },
   ];
 
-  const masteryPillars = [
-    {
-      icon: Gauge,
-      title: "XP Momentum",
-      description: "Unlock new robotics titles as you progress from Novice to Grand Robotics Master.",
-      accent: "Live leveling",
-    },
+  const accelerators = [
     {
       icon: Brain,
       title: "AI Tutor Guidance",
-      description: "Personalized study plans and quiz feedback keep your learning on track.",
-      accent: "Adaptive feedback",
+      description: "Personalized mentor-style responses that break down complex robotics concepts with examples.",
+      badge: "New",
     },
     {
-      icon: Shield,
-      title: "Confidence Coaching",
-      description: "Skill sliders help you assess strengths, close gaps, and earn bonus XP.",
-      accent: "Skill mapping",
+      icon: Compass,
+      title: "Adaptive Paths",
+      description: "Smart learning routes that react to your confidence levels and quiz results in real-time.",
+      badge: "Guided",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Safety-First Projects",
+      description: "Checklists, gate reviews, and reminders baked into every build so nothing gets overlooked.",
+      badge: "Trusted",
+    },
+    {
+      icon: MessageSquare,
+      title: "Collaboration Signals",
+      description: "Spot peers who are building similar bots and jump into focused conversations instantly.",
+      badge: "Live",
     },
   ];
 
-  const sampleXP = {
-    currentXP: 2450,
-    currentLevel: LEVEL_THRESHOLDS.find(level => level.level === 4),
-    nextLevel: LEVEL_THRESHOLDS.find(level => level.level === 5),
-  };
-
-  const currentLevelXP = sampleXP.currentLevel?.xp || 0;
-  const nextLevelXP = sampleXP.nextLevel?.xp || currentLevelXP;
-  const levelRange = Math.max(1, nextLevelXP - currentLevelXP);
-  const progressToNextLevel = Math.min(100, Math.max(0, ((sampleXP.currentXP - currentLevelXP) / levelRange) * 100));
+  const journeyPreview = [
+    {
+      title: "Foundations Sprint",
+      focus: "Coding & Control Systems",
+      progress: 72,
+      tags: ["Python", "PID", "Sensors"],
+    },
+    {
+      title: "Hardware Builder",
+      focus: "Electronics & Safety",
+      progress: 58,
+      tags: ["PCB", "Power", "Testing"],
+    },
+    {
+      title: "Autonomy Lab",
+      focus: "AI & Vision",
+      progress: 41,
+      tags: ["CV", "ROS", "Mapping"],
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-cosmic overflow-hidden">
@@ -389,107 +421,145 @@ const Index = () => {
         </div>
       </section>
 
-      {/* XP & Mastery Section */}
-      <section className="py-24 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 premium-gradient opacity-40" />
+      {/* Accelerator Section */}
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-secondary/5" />
         <div className="container mx-auto relative z-10">
-          <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 items-start">
-            <Card className="p-10 glass-card glow-border animate-reveal space-y-8">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-primary mb-2">RoboJourney XP Engine</p>
-                  <h3 className="text-4xl font-bold">Track your mastery in real time</h3>
-                  <p className="text-muted-foreground mt-2">A preview of what learners see on the dashboard.</p>
+          <div className="grid lg:grid-cols-3 gap-10 items-start">
+            <Card className="p-8 lg:col-span-1 glass-card glow-border space-y-6 animate-reveal">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card">
+                <Activity className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Momentum boosters</span>
+              </div>
+              <h2 className="text-4xl font-bold leading-tight">
+                Ship robotics projects faster with focused guidance
+              </h2>
+              <p className="text-muted-foreground text-lg leading-relaxed">
+                These premium tools are live in the workspace experience and show up instantly in the preview.
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="h-5 w-5 text-primary mt-0.5" />
+                  <p className="text-sm text-muted-foreground">Safety checks and wiring reminders built into every template</p>
                 </div>
-                <div className="px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-sm font-medium">
-                  Level {sampleXP.currentLevel?.level}
+                <div className="flex items-start gap-3">
+                  <Brain className="h-5 w-5 text-secondary mt-0.5" />
+                  <p className="text-sm text-muted-foreground">Tutor answers grounded in your project context and goals</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Compass className="h-5 w-5 text-accent mt-0.5" />
+                  <p className="text-sm text-muted-foreground">Auto-generated next steps so you always know what to do next</p>
                 </div>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="p-6 rounded-2xl bg-card/60 border border-border/40">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Current XP</p>
-                      <p className="text-3xl font-bold">{sampleXP.currentXP.toLocaleString()} XP</p>
-                    </div>
-                    <Badge variant="secondary" className="text-sm">
-                      {sampleXP.currentLevel?.title}
-                    </Badge>
-                  </div>
-                  <Progress value={progressToNextLevel} className="h-3 mb-3" />
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{currentLevelXP.toLocaleString()} XP</span>
-                    <span>Next: {nextLevelXP.toLocaleString()} XP</span>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-secondary/15 to-primary/10 border border-secondary/40">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Medal className="h-10 w-10 text-secondary" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">XP rewards preview</p>
-                      <p className="text-lg font-semibold">Earn XP with every action</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(XP_REWARDS).slice(0, 6).map(([key, value]) => (
-                      <div key={key} className="p-3 rounded-xl bg-card/70 border border-border/40">
-                        <p className="font-semibold capitalize">{key.replace(/_/g, " ")}</p>
-                        <p className="text-sm text-primary font-medium">+{value} XP</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4">
-                {LEVEL_THRESHOLDS.slice(0, 6).map((level) => (
-                  <div key={level.level} className="p-4 rounded-xl bg-card/70 border border-border/40">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Level {level.level}</p>
-                    <p className="font-semibold">{level.title}</p>
-                    <p className="text-sm text-primary font-medium mt-2">{level.xp.toLocaleString()} XP</p>
-                  </div>
-                ))}
+              <div className="pt-4 flex flex-wrap gap-3">
+                <Badge variant="secondary" className="px-3 py-1 bg-primary/10 text-primary">Live in preview</Badge>
+                <Badge variant="outline" className="px-3 py-1">No setup required</Badge>
               </div>
             </Card>
 
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-primary/15 border border-primary/30">
-                  <Sparkles className="h-6 w-6 text-primary" />
+            <div className="lg:col-span-2 grid md:grid-cols-2 gap-6">
+              {accelerators.map((item, index) => (
+                <Card
+                  key={item.title}
+                  className="p-6 glass-card glow-border hover-lift animate-scale-in space-y-4"
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="inline-flex p-3 rounded-2xl premium-gradient">
+                      <item.icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <Badge className="bg-secondary/20 text-secondary-foreground">{item.badge}</Badge>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Auto-enabled</span>
+                    <span className="text-primary font-medium">Instant updates</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Journey Preview Section */}
+      <section className="py-24 px-4 relative">
+        <div className="container mx-auto">
+          <div className="grid lg:grid-cols-3 gap-8 items-start">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="inline-flex p-3 rounded-xl glass-card">
+                  <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Designed for clarity</p>
-                  <h4 className="text-2xl font-bold">What learners see first</h4>
+                  <p className="text-sm text-primary font-semibold">Learning preview</p>
+                  <h2 className="text-4xl font-bold">See your roadmap before you sign in</h2>
                 </div>
               </div>
+              <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">
+                The Lovable preview mirrors what students see after onboarding—adaptive sprints, XP targets, and badges ready to unlock.
+              </p>
 
-              <div className="grid gap-4">
-                {masteryPillars.map((pillar, index) => (
-                  <Card
-                    key={pillar.title}
-                    className="p-6 glass-card glow-border animate-scale-in"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 rounded-xl premium-gradient">
-                        <pillar.icon className="h-6 w-6 text-primary" />
+              <div className="grid md:grid-cols-2 gap-4">
+                {journeyPreview.map((stage) => (
+                  <Card key={stage.title} className="p-5 glass-card glow-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-lg">{stage.title}</h3>
+                      <Badge variant="outline" className="text-xs">{stage.focus}</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span className="text-primary font-semibold">{stage.progress}%</span>
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <h5 className="text-xl font-bold">{pillar.title}</h5>
-                          <Badge variant="outline" className="border-border/40 text-xs">
-                            {pillar.accent}
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground leading-relaxed">{pillar.description}</p>
-                      </div>
+                      <Progress value={stage.progress} className="h-2" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {stage.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary">
+                          {tag}
+                        </Badge>
+                      ))}
                     </div>
                   </Card>
                 ))}
               </div>
             </div>
+
+            <Card className="p-6 glass-card glow-border animate-reveal space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-primary font-medium">Live pulse</p>
+                  <h3 className="text-2xl font-bold">Platform momentum</h3>
+                </div>
+                <Sparkles className="h-6 w-6 text-secondary" />
+              </div>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Active learners</span>
+                  <span className="font-semibold text-primary">{platformStats?.totalLearners || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Projects built</span>
+                  <span className="font-semibold text-secondary">{platformStats?.totalProjects || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Resources shared</span>
+                  <span className="font-semibold text-accent">{platformStats?.totalResources || 0}</span>
+                </div>
+              </div>
+              <div className="pt-2 space-y-2">
+                <Button asChild className="w-full">                    
+                  <Link to="/dashboard">Explore dashboard</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full border-border/50">
+                  <Link to="/tutor">Ask the AI tutor</Link>
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
       </section>
