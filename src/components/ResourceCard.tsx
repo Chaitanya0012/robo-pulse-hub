@@ -3,6 +3,35 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, BookOpen, Star, Video, FileText, GraduationCap } from "lucide-react";
 
+const getYouTubeEmbed = (url?: string) => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace("www.", "").toLowerCase();
+    let videoId = "";
+
+    if (hostname.includes("youtube.com")) {
+      videoId = parsed.searchParams.get("v") || "";
+    } else if (hostname === "youtu.be") {
+      videoId = parsed.pathname.slice(1);
+    }
+
+    if (!videoId) return null;
+
+    const params = new URLSearchParams({
+      rel: "0",
+      modestbranding: "1",
+      playsinline: "1",
+    });
+
+    return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+  } catch (error) {
+    console.warn("Invalid YouTube URL provided to ResourceCard", error);
+    return null;
+  }
+};
+
 interface ResourceCardProps {
   title: string;
   description: string;
@@ -20,6 +49,8 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
     intermediate: "bg-warning/20 text-warning",
     advanced: "bg-destructive/20 text-destructive",
   };
+
+  const youtubeEmbedUrl = getYouTubeEmbed(url);
 
   const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -48,6 +79,22 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
         <h3 className="text-lg font-semibold flex-1">{title}</h3>
       </div>
       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{description}</p>
+      {youtubeEmbedUrl && (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs text-muted-foreground">Quick preview (avoids cross-origin opener issues)</p>
+          <div className="aspect-video rounded-md overflow-hidden border border-border/50 bg-muted/50">
+            <iframe
+              src={youtubeEmbedUrl}
+              title={`${title} preview`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              className="w-full h-full"
+            />
+          </div>
+        </div>
+      )}
       {url && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md border border-border/50 space-y-2">
           <p className="text-xs text-muted-foreground">Trusted external link</p>
@@ -56,12 +103,19 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
               href={url}
               target="_blank"
               rel="noopener noreferrer"
+              referrerPolicy="no-referrer"
               className="text-sm font-semibold text-primary hover:underline break-all"
             >
               {url}
             </a>
             <Button asChild size="sm" variant="secondary" className="group">
-              <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+                className="inline-flex items-center"
+              >
                 <ExternalLink className="h-4 w-4 mr-1 group-hover:animate-glow-pulse" />
                 Open
               </a>
