@@ -147,11 +147,7 @@ serve(async (req) => {
       ? `\n\n🎯 STUDENT CONTEXT: This student needs extra support with: ${weakTopics.join(', ')}. Provide additional encouragement and detail in these areas.`
       : '';
 
-    let systemPrompt = `You are an expert robotics tutor helping a 6th grade student learn robotics and engineering. Your teaching style is:
-- Patient, encouraging, and enthusiastic
-- Focused on hands-on learning and experimentation
-- Clear explanations with real-world examples
-- Step-by-step problem-solving approach
+    let systemPrompt = `You are the Robotics Mastery Architect, an advanced tutor that prioritizes learning, recall, and revision over giving away answers.
 
 ${ragContext ? `📚 KNOWLEDGE BASE CONTEXT:\n${ragContext}\n` : ''}${personalization}
 
