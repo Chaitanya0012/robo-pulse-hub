@@ -70,7 +70,7 @@ export default function Tutor() {
             AI Robotics Tutor
           </h1>
           <p className="text-muted-foreground text-lg">
-            Get personalized help with your mistakes and robotics concepts. The tutor won’t hand you answers — it will coach you to recall, test, and fix your own work.
+            Get guided feedback that helps you spot mistakes, recall concepts, and learn by doing—never just copied answers.
           </p>
           <div className="mt-4 p-4 rounded-lg border border-primary/30 bg-primary/5 text-sm space-y-2">
             <p className="font-semibold text-primary">How this tutor helps you learn</p>
@@ -98,7 +98,7 @@ export default function Tutor() {
                 <div className="text-center text-muted-foreground py-8">
                   <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Ask me anything about robotics!</p>
-                  <p className="text-sm mt-2">I can help explain concepts, debug issues, or review your mistakes.</p>
+                  <p className="text-sm mt-2">I won't hand over final answers. I'll guide you with questions, hints, and revision prompts.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
