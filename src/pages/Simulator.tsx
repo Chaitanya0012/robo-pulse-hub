@@ -1,31 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Shield, Bug } from "lucide-react";
-import Editor from "@monaco-editor/react";
+import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Shield, Bug, Brain, Sparkles } from "lucide-react";
 
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Brain } from "lucide-react";
-import Navigation from "@/components/Navigation";
-import Editor from "@monaco-editor/react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
+import { CodeEditor } from "@/components/simulator/CodeEditor";
+import { TelemetryPanel } from "@/components/simulator/TelemetryPanel";
+import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
+import { useSimulator } from "@/hooks/useSimulator";
 
-const defaultCode = `// Arduino-style robot code
-void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(2, OUTPUT); // Motor A
-  pinMode(3, OUTPUT); // Motor B
-  Serial.begin(9600);
-}
-
-main(setMotor, readSensor, sleep, console);`;
+const defaultCode = `// Arduino-style robot code\nvoid setup() {\n  pinMode(LED_BUILTIN, OUTPUT);\n  pinMode(2, OUTPUT); // Motor A\n  pinMode(3, OUTPUT); // Motor B\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  setMotor(0.5, 0.5);\n  await sleep(500);\n  digitalWrite(LED_BUILTIN, HIGH);\n  Serial.println("Moving forward");\n}`;
 
 type CompileStatus = {
-  state: "idle" | "ok" | "error";
+  state: "idle" | "ok" | "error" | "paused";
   message: string;
+};
+
+type Diagnostics = {
+  errors: string[];
+  warnings: string[];
+  signals: string[];
+  ledUsage: boolean;
+  script: string[];
+};
+
+const boardPresets = {
+  "arduino-uno": { name: "Arduino Uno", label: "ATmega328P", lanes: 12, color: "from-emerald-500/30 to-cyan-500/30" },
+  "arduino-nano": { name: "Arduino Nano", label: "ATmega4809", lanes: 10, color: "from-blue-500/30 to-indigo-500/30" },
+  esp32: { name: "ESP32 DevKit", label: "Xtensa LX6", lanes: 18, color: "from-amber-500/30 to-orange-500/30" },
 };
 
 const analogPinLabels = ["A0", "A1", "A2", "A3", "A4", "A5"];
@@ -65,23 +68,47 @@ const extractUsedPins = (source: string) => {
   return { digitalPins: Array.from(digitalPins).sort((a, b) => a - b), analogPins: Array.from(analogPins) };
 };
 
+const extractSerialMessages = (source: string) => {
+  const messages = Array.from(source.matchAll(/Serial\.print(?:ln)?\(([^)]+)\)/g)).map((match) => match[1]?.trim() ?? "");
+  if (messages.length === 0) {
+    return ["Serial is quiet – add Serial.println() to stream data."];
+  }
+  return messages.slice(0, 5);
+};
+
 const Simulator = () => {
-  const { user } = useAuth();
+  const { isRunning, telemetry, startSimulation, stopSimulation, resetSimulation, executeCode } = useSimulator();
+  const telemetryRef = useRef(telemetry);
+
   const [code, setCode] = useState(defaultCode);
-  const [isRunning, setIsRunning] = useState(false);
+  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
+  const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle", message: "Ready to simulate" });
   const [serialOutput, setSerialOutput] = useState<string[]>([
     "💡 Tip: Type code, then hit Run to validate and stream live output.",
   ]);
-  const [ledState, setLedState] = useState(false);
-  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
   const [digitalUsedPins, setDigitalUsedPins] = useState<number[]>([]);
   const [analogUsedPins, setAnalogUsedPins] = useState<string[]>([]);
-  const [tutorGuidance, setTutorGuidance] = useState<string>("");
-  const [isTutorAnalyzing, setIsTutorAnalyzing] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics>({
+    errors: [],
+    warnings: [],
+    signals: [],
+    ledUsage: false,
+    script: ["Awaiting first run"]
+  });
 
-  const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
+  const currentBoard = useMemo(() => boardPresets[board], [board]);
 
-  const validateCode = () => {
+  useEffect(() => {
+    telemetryRef.current = telemetry;
+  }, [telemetry]);
+
+  useEffect(() => {
+    const { digitalPins, analogPins } = extractUsedPins(code);
+    setDigitalUsedPins(digitalPins);
+    setAnalogUsedPins(analogPins);
+  }, [code]);
+
+  const validateCode = useCallback(() => {
     const errors: string[] = [];
 
     if (!/void\s+setup\s*\(/i.test(code)) {
@@ -106,112 +133,82 @@ const Simulator = () => {
     });
 
     return errors;
-  };
+  }, [analogUsedPins, currentBoard, digitalUsedPins, code]);
 
-  const requestTutorGuidance = async (errors: string[]) => {
-    setIsTutorAnalyzing(true);
-    setTutorGuidance("");
+  const computeDiagnostics = useCallback((): Diagnostics => {
+    const validationErrors = validateCode();
+    const serialMessages = extractSerialMessages(code);
+    const digitalWrites = Array.from(code.matchAll(/digitalWrite\s*\(([^,]+)/gi)).map((match) => match[1]?.trim() ?? "");
 
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-tutor', {
-        body: {
-          prompt: `You are helping a student debug a microcontroller sketch in a virtual simulator. Please DO NOT give the final code or numeric answers. Ask guiding questions and suggest checkpoints so the student can fix issues themselves.\n\nBoard: ${currentBoard.name}\nDetected problems:\n${errors.map((err) => `- ${err}`).join('\n')}\n\nHere is the current code:\n${code}\n\nRespond with 3-5 short prompts that lead the student to the fix, and end with one reflection question.`,
-          userId: user?.id,
-          action: 'chat'
-        }
-      });
+    const warnings: string[] = [];
+    if (!/Serial\.begin/i.test(code)) warnings.push("Serial.begin(...) not found – serial monitor will stay quiet.");
+    if (!/setMotor/i.test(code)) warnings.push("setMotor(left, right) is never called – robot will stay idle.");
 
-      if (error) throw error;
-      setTutorGuidance(data.response || "The tutor could not generate guidance right now.");
-    } catch (error: any) {
-      console.error("Tutor debug error", error);
-      toast.error(error.message || "Failed to get AI tutor guidance");
-    } finally {
-      setIsTutorAnalyzing(false);
-    }
-  };
-
-  useEffect(() => {
-    const { digitalPins, analogPins } = extractUsedPins(code);
-    setDigitalUsedPins(digitalPins);
-    setAnalogUsedPins(analogPins);
-  }, [code]);
-
-  useEffect(() => {
-    if (!isRunning) return;
+    const signals = Array.from(new Set(serialMessages.map((msg) => msg.replace(/"/g, ""))));
 
     return {
-      errors,
+      errors: validationErrors,
       warnings,
       signals,
       ledUsage: digitalWrites.some((dw) => dw.toLowerCase().includes("led_builtin")),
-      script,
+      script: serialMessages,
     };
-  };
+  }, [code, validateCode]);
 
-  useEffect(() => {
-    telemetryRef.current = telemetry;
-  }, [telemetry]);
+  const handleRun = useCallback(() => {
+    const nextDiagnostics = computeDiagnostics();
+    setDiagnostics(nextDiagnostics);
 
-    let step = 0;
-    const interval = setInterval(() => {
-      const message = diagnostics.script[step % diagnostics.script.length];
-      setSerialOutput((prev) => [...prev, message]);
-      setLedState((prev) => (diagnostics.ledUsage ? !prev : false));
-      step += 1;
-    }, 900);
-
-    return () => clearInterval(interval);
-  }, [diagnostics.ledUsage, diagnostics.script, isRunning]);
-
-  const handleRun = async () => {
-    const validationErrors = validateCode();
-
-    if (validationErrors.length > 0) {
-      setIsRunning(false);
-      setSerialOutput((prevOutput) => [
-        ...prevOutput,
+    if (nextDiagnostics.errors.length > 0) {
+      setCompileStatus({ state: "error", message: "Fix the validation issues before running." });
+      setSerialOutput((prev) => [
+        ...prev,
         "⛔ Simulation blocked: fix the issues below",
-        ...validationErrors.map((err) => `- ${err}`),
+        ...nextDiagnostics.errors.map((err) => `- ${err}`),
       ]);
-      await requestTutorGuidance(validationErrors);
+      stopSimulation();
       return;
     }
 
-    setTutorGuidance("");
-    setIsRunning((prev) => {
-      const next = !prev;
-      if (next) {
-        setSerialOutput((prevOutput) => [...prevOutput, "▶ Simulation started"]);
-      }
-      return next;
-    });
-  };
+    if (isRunning) {
+      stopSimulation();
+      setCompileStatus({ state: "paused", message: "Simulation paused" });
+      setSerialOutput((prev) => [...prev, "⏸ Simulation paused"]);
+      return;
+    }
 
-  const handleReset = () => {
-    setIsRunning(false);
-    setLedState(false);
-    setSerialOutput([]);
-    setTutorGuidance("");
-  };
+    setCompileStatus({ state: "ok", message: "Simulation running" });
+    setSerialOutput((prev) => [...prev, "▶ Simulation started", ...nextDiagnostics.script]);
+    startSimulation();
+    executeCode(code);
+  }, [computeDiagnostics, executeCode, isRunning, startSimulation, stopSimulation, code]);
+
+  const handleReset = useCallback(() => {
+    resetSimulation();
+    setSerialOutput(["💡 Tip: Type code, then hit Run to validate and stream live output."]);
+    setCompileStatus({ state: "idle", message: "Ready to simulate" });
+  }, [resetSimulation]);
 
   useEffect(() => {
     if (!isRunning) return;
 
     const interval = setInterval(() => {
       const snap = telemetryRef.current;
-      setSerialOutput(prev =>
-        [
-          ...prev.slice(-24),
-          `T${new Date().toLocaleTimeString()} :: L:${(snap.leftMotor * 100).toFixed(0)}% R:${(snap.rightMotor * 100).toFixed(
-            0
-          )}% | ultrasonic ${snap.sensors.ultrasonic}m`,
-        ]
-      );
-    }, 700);
+      setSerialOutput((prev) => [
+        ...prev.slice(-24),
+        `T${new Date().toLocaleTimeString()} :: L:${(snap.leftMotor * 100).toFixed(0)}% R:${(snap.rightMotor * 100).toFixed(0)}% | ultrasonic ${snap.sensors.ultrasonic}m`,
+      ]);
+    }, 900);
 
     return () => clearInterval(interval);
   }, [isRunning]);
+
+  const simulationState = useMemo(() => {
+    if (compileStatus.state === "error") return "error";
+    if (isRunning) return "running";
+    if (compileStatus.state === "paused") return "paused";
+    return "idle";
+  }, [compileStatus.state, isRunning]);
 
   return (
     <div className="min-h-screen bg-gradient-cosmic">
@@ -244,7 +241,7 @@ const Simulator = () => {
             <select
               className="w-[220px] rounded-lg border border-border bg-background/50 px-3 py-2 text-sm"
               value={board}
-              onChange={e => setBoard(e.target.value as keyof typeof boardPresets)}
+              onChange={(event) => setBoard(event.target.value as keyof typeof boardPresets)}
             >
               <option value="arduino-uno">Arduino Uno</option>
               <option value="arduino-nano">Arduino Nano</option>
@@ -276,33 +273,33 @@ const Simulator = () => {
               </div>
             </div>
 
-            <div className="border border-border/50 rounded-lg overflow-hidden h-[520px]">
-              <Editor
-                height="100%"
-                defaultLanguage="javascript"
-                theme="vs-dark"
-                value={code}
-                onChange={value => setCode(value || "")}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                }}
-              />
-            </div>
+            <CodeEditor value={code} onChange={setCode} language="javascript" />
 
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border border-border/50 rounded-lg p-3 bg-background/60">
               <div className="flex items-center gap-2">
-                {compileStatus.state === "ok" && <Shield className="h-4 w-4 text-green-400" />} 
-                {compileStatus.state === "error" && <Bug className="h-4 w-4 text-destructive" />} 
+                {compileStatus.state === "ok" && <Shield className="h-4 w-4 text-green-400" />}
+                {compileStatus.state === "error" && <Bug className="h-4 w-4 text-destructive" />}
                 {compileStatus.state === "idle" && <Radio className="h-4 w-4 text-muted-foreground" />}
+                {compileStatus.state === "paused" && <Pause className="h-4 w-4 text-amber-400" />}
                 <span className="text-sm font-medium">{compileStatus.message}</span>
               </div>
               <div className="flex gap-2 text-xs text-muted-foreground">
-                <Button variant="outline" size="sm" onClick={validateCode}>
+                <Button variant="outline" size="sm" onClick={() => setDiagnostics(computeDiagnostics())}>
                   Run validation only
                 </Button>
               </div>
             </div>
+
+            <Card className="p-4 glass-card">
+              <h3 className="text-sm font-semibold mb-2">Serial Monitor</h3>
+              <div className="h-[160px] overflow-y-auto rounded-md border border-border/50 bg-background/60 p-3 font-mono text-xs space-y-1">
+                {serialOutput.map((line, index) => (
+                  <div key={`${line}-${index}`} className="text-foreground/80">
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </Card>
           </Card>
 
           <div className="space-y-6">
@@ -366,7 +363,7 @@ const Simulator = () => {
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
-                        ledState && diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
+                        diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
                       }`}
                     />
                     <div className="text-white text-sm">
@@ -385,6 +382,11 @@ const Simulator = () => {
             <Card className="p-4 glass-card">
               <h2 className="text-lg font-semibold mb-3">3D Scene</h2>
               <SimulatorCanvas telemetry={telemetry} />
+            </Card>
+
+            <Card className="p-4 glass-card">
+              <h2 className="text-lg font-semibold mb-3">Telemetry</h2>
+              <TelemetryPanel telemetry={telemetry} />
             </Card>
 
             <Card className="p-6 glass-card">
@@ -447,20 +449,11 @@ const Simulator = () => {
                 <h2 className="text-xl font-semibold">AI Tutor Debugger</h2>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                When the simulator spots an issue, the AI tutor will ask guiding questions instead of giving the answer.
+                When the simulator spots an issue, you can use the warnings above to guide your debugging session.
               </p>
-              {isTutorAnalyzing ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                  <span>AI tutor is reviewing your code...</span>
-                </div>
-              ) : tutorGuidance ? (
-                <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                  {tutorGuidance}
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">Run the simulator to see guided debugging tips here.</div>
-              )}
+              <div className="text-sm text-muted-foreground">
+                Run the simulator to see guided debugging tips here.
+              </div>
             </Card>
           </div>
         </div>
