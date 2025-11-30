@@ -1,10 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
 import CollaborationDialog from "@/components/CollaborationDialog";
-import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail, ArrowRight, Star } from "lucide-react";
+import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail, ArrowRight, Star, ShieldCheck } from "lucide-react";
 import heroImage from "@/assets/hero-robotics.jpg";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -14,6 +14,59 @@ const Index = () => {
   const { user } = useAuth();
   const { collaborations, isLoading } = useCollaboration();
   const { stats: platformStats } = usePlatformStats();
+  const navigate = useNavigate();
+
+  const [planInput, setPlanInput] = useState("");
+  const [trainingConsent, setTrainingConsent] = useState(false);
+  const [dailyPlan, setDailyPlan] = useState([
+    {
+      title: "Warm up with a quick quiz",
+      description: "Test your fundamentals and unlock XP before diving into projects.",
+      action: () => navigate("/quiz-dashboard"),
+    },
+    {
+      title: "Build in the simulator",
+      description: "Load the ESP32/Arduino sandbox and prototype without hardware.",
+      action: () => navigate("/simulator"),
+    },
+    {
+      title: "Skim a human-grade article",
+      description: "Pick a topic in the Learn section and highlight key takeaways.",
+      action: () => navigate("/learn"),
+    },
+  ]);
+
+  const createNavigatorPlan = (goal: string) => {
+    const trimmedGoal = goal.trim() || "Ship a stable robot demo";
+    return [
+      {
+        title: "Define done & guardrails",
+        detail: `Success looks like: ${trimmedGoal}. Write 3 checks you can verify in the simulator and one real-world fallback.`,
+        eta: "5 min",
+        status: "READY",
+      },
+      {
+        title: "Prototype in simulator",
+        detail: "Load your board preset, wire virtual sensors, and stream telemetry to catch logic bugs before hardware.",
+        eta: "12 min",
+        status: "RUNNING",
+      },
+      {
+        title: "Navigation sanity",
+        detail: "Record a 90-second run with obstacles. If ultrasonic < 0.3m, trigger a slow-turn recovery routine.",
+        eta: "8 min",
+        status: "PENDING",
+      },
+      {
+        title: "Quiz & lock-in",
+        detail: "Take a 4-question checkpoint on today’s topic to close the loop and earn XP.",
+        eta: "4 min",
+        status: "PENDING",
+      },
+    ];
+  };
+
+  const navigatorPlan = useMemo(() => createNavigatorPlan(planInput), [planInput]);
 
   const features = [
     {
@@ -37,6 +90,34 @@ const Index = () => {
       description: "Monitor your competencies in coding, electronics, and engineering with skill meters.",
     },
   ];
+
+  const consentLabel = useMemo(
+    () => (trainingConsent ? "Training allowed on anonymized activity" : "Keep my data private"),
+    [trainingConsent]
+  );
+
+  const handlePlan = () => {
+    const trimmed = planInput.trim();
+    if (!trimmed) return;
+
+    setDailyPlan([
+      {
+        title: "Start with focus",
+        description: `Today's mission: ${trimmed}`,
+        action: () => navigate("/dashboard"),
+      },
+      {
+        title: "Get guidance",
+        description: "Read a curated article and then take the adaptive quiz to lock it in.",
+        action: () => navigate("/learn"),
+      },
+      {
+        title: "Prototype fast",
+        description: "Spin up the simulator and preview your firmware without flashing hardware.",
+        action: () => navigate("/simulator"),
+      },
+    ]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-cosmic overflow-hidden">
@@ -142,6 +223,76 @@ const Index = () => {
       {/* Features Section - Premium Grid */}
       <section className="py-32 px-4 relative">
         <div className="container mx-auto">
+          {/* AI Navigation Planner */}
+          <div className="glass-card glow-border mb-16 p-8 lg:p-10 rounded-3xl animate-reveal space-y-6">
+            <div className="flex items-center gap-3">
+              <Sparkles className="h-6 w-6 text-primary" />
+              <div>
+                <p className="text-sm uppercase tracking-widest text-muted-foreground">AI Navigation</p>
+                <h2 className="text-3xl font-bold">Drop your goal, get a guided path</h2>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[2fr,1fr] items-start">
+              <div className="space-y-3">
+                <label className="text-sm text-muted-foreground">What do you want to do today?</label>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                  <input
+                    value={planInput}
+                    onChange={(e) => setPlanInput(e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-xl border bg-background/60 focus:ring-2 focus:ring-primary"
+                    placeholder="e.g., Build an ESP32 weather logger"
+                  />
+                  <Button size="lg" className="w-full md:w-auto" onClick={handlePlan}>
+                    Generate my path
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <button
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition ${
+                      trainingConsent ? "border-primary/60 bg-primary/10" : "border-border"
+                    }`}
+                    onClick={() => setTrainingConsent((prev) => !prev)}
+                    aria-pressed={trainingConsent}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    {consentLabel}
+                  </button>
+                  <span className="text-muted-foreground">Toggle whether your activity trains the LLM.</span>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {navigatorPlan.map((step, index) => (
+                    <Card key={step.title} className="p-4 border-primary/20 bg-background/70">
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <div className="px-2 py-1 rounded-full bg-primary/10 text-primary font-semibold">{step.status}</div>
+                        <span className="text-muted-foreground">{step.eta}</span>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{index + 1}. {step.title}</p>
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{step.detail}</p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+              <Card className="p-4 border-dashed border-primary/30 bg-primary/5">
+                <p className="text-sm text-muted-foreground mb-3">Autopilot queue</p>
+                <div className="space-y-2">
+                  {dailyPlan.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={item.action}
+                      className="w-full text-left p-3 rounded-lg hover:bg-primary/10 transition"
+                    >
+                      <p className="text-sm font-semibold">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+
           {/* Section Header */}
           <div className="text-center mb-20 space-y-4 animate-reveal">
             <div className="inline-block px-4 py-2 glass-card rounded-full mb-4">
