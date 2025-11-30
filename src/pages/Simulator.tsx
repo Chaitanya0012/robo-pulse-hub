@@ -34,6 +34,14 @@ const boardPresets = {
 const analogPinLabels = ["A0", "A1", "A2", "A3", "A4", "A5"];
 const powerAndAnalogPins = ["5V", "3V3", "GND", "VIN", ...analogPinLabels];
 
+const boardPresets = {
+  "arduino-uno": { label: "Arduino Uno", name: "Arduino Uno", lanes: 12, color: "from-emerald-500/60 to-slate-900" },
+  "arduino-nano": { label: "Arduino Nano", name: "Arduino Nano", lanes: 10, color: "from-blue-500/60 to-slate-900" },
+  esp32: { label: "ESP32 DevKit", name: "ESP32 DevKit", lanes: 14, color: "from-indigo-500/60 to-slate-900" },
+};
+
+type BoardKey = keyof typeof boardPresets;
+
 const extractUsedPins = (source: string) => {
   const digitalPins = new Set<number>();
   const analogPins = new Set<string>();
@@ -111,7 +119,7 @@ const Simulator = () => {
   const validateCode = useCallback(() => {
     const errors: string[] = [];
 
-    if (!/void\s+setup\s*\(/i.test(code)) {
+    if (!/function\s+setup\s*\(/i.test(code)) {
       errors.push("Missing setup() function to configure pins.");
     }
 
@@ -401,6 +409,7 @@ const Simulator = () => {
                   {isRunning ? "Running" : compileStatus.state === "error" ? "Build errors" : compileStatus.state === "ok" ? "Validated" : "Idle"}
                 </div>
               </div>
+            </div>
 
               <div className="space-y-2 text-sm">
                 {diagnostics.errors.length === 0 ? (
@@ -422,13 +431,17 @@ const Simulator = () => {
                     <Radio className="mt-0.5 h-4 w-4" />
                     <span>{warn}</span>
                   </div>
-                ))}
+                ))
+              )}
+            </div>
+          </Card>
 
-                {diagnostics.signals.length > 0 && (
-                  <div className="pt-2 text-xs text-muted-foreground">
-                    Signals detected: {diagnostics.signals.join(", ")}
-                  </div>
-                )}
+          <Card className="p-6 glass-card space-y-4">
+            <div className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="text-lg font-semibold">AI Tutor</h2>
+                <p className="text-xs text-muted-foreground">Guidance for debugging your sketch.</p>
               </div>
             </Card>
 
@@ -450,6 +463,19 @@ const Simulator = () => {
             </Card>
           </div>
         </div>
+
+        <Card className="p-6 glass-card">
+          <h2 className="text-lg font-semibold mb-3">Serial Monitor</h2>
+          <ScrollArea className="h-48 rounded-md border border-border/50 p-3 bg-background/60 font-mono text-sm">
+            <div className="space-y-1">
+              {serialOutput.map((line, index) => (
+                <div key={`${line}-${index}`} className="text-foreground/80">
+                  {line}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </Card>
       </div>
     </div>
   );
