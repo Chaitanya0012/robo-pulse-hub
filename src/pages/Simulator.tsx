@@ -1,76 +1,43 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Shield, Bug, Brain, Sparkles } from "lucide-react";
-import Editor from "@monaco-editor/react";
 
 import Navigation from "@/components/Navigation";
+import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
+import { CodeEditor } from "@/components/simulator/CodeEditor";
+import { TelemetryPanel } from "@/components/simulator/TelemetryPanel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSimulator } from "@/hooks/useSimulator";
 
-const defaultCode = `// Arduino-style robot code
-void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(2, OUTPUT); // Motor A
-  pinMode(3, OUTPUT); // Motor B
-  Serial.begin(9600);
-}
-
-main(setMotor, readSensor, sleep, console);`;
+const defaultCode = `// Arduino-style robot code\nvoid setup() {\n  pinMode(LED_BUILTIN, OUTPUT);\n  pinMode(2, OUTPUT); // Motor A\n  pinMode(3, OUTPUT); // Motor B\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  setMotor(0.5, 0.5);\n  await sleep(500);\n  digitalWrite(LED_BUILTIN, HIGH);\n  Serial.println("Moving forward");\n}`;
 
 type CompileStatus = {
-  state: "idle" | "ok" | "error";
+  state: "idle" | "ok" | "error" | "paused";
   message: string;
 };
 
-type BoardConfig = {
-  name: string;
-  label: string;
-  color: string;
-  lanes: number;
+type Diagnostics = {
+  errors: string[];
+  warnings: string[];
+  signals: string[];
+  ledUsage: boolean;
+  script: string[];
 };
 
-const boardPresets: Record<string, BoardConfig> = {
-  "arduino-uno": {
-    name: "Arduino Uno",
-    label: "UNO R3",
-    color: "from-[#0f172a] to-[#1e293b]",
-    lanes: 12, // renders pins D2-D13
-  },
-  "arduino-nano": {
-    name: "Arduino Nano",
-    label: "NANO",
-    color: "from-[#0a1428] to-[#1f2a44]",
-    lanes: 12,
-  },
-  esp32: {
-    name: "ESP32 DevKit",
-    label: "ESP32",
-    color: "from-[#0b1224] to-[#1c2540]",
-    lanes: 16, // renders pins D2-D17
-  },
+const boardPresets = {
+  "arduino-uno": { name: "Arduino Uno", label: "ATmega328P", lanes: 12, color: "from-emerald-500/60 to-slate-900" },
+  "arduino-nano": { name: "Arduino Nano", label: "ATmega4809", lanes: 10, color: "from-blue-500/60 to-slate-900" },
+  esp32: { name: "ESP32 DevKit", label: "Xtensa LX6", lanes: 14, color: "from-indigo-500/60 to-slate-900" },
 };
 
 const analogPinLabels = ["A0", "A1", "A2", "A3", "A4", "A5"];
 const powerAndAnalogPins = ["5V", "3V3", "GND", "VIN", ...analogPinLabels];
 
-const extractSerialMessages = (source: string) => {
-  const serialPattern = /Serial\.(?:print|println)\s*\(\s*([^)]+)\)/gi;
-  const messages: string[] = [];
+type BoardKey = keyof typeof boardPresets;
 
-  for (const match of source.matchAll(serialPattern)) {
-    const raw = match[1]?.replace(/["'`]/g, "").trim();
-    if (raw) messages.push(raw);
-  }
-
-  return messages.length > 0 ? messages : ["(No Serial.println messages detected)"];
-};
-
-const analyzePins = (source: string) => {
+const extractUsedPins = (source: string) => {
   const digitalPins = new Set<number>();
   const analogPins = new Set<string>();
   const digitalWrites: string[] = [];
@@ -141,87 +108,117 @@ const validateSketch = (
   return errors;
 };
 
+const extractSerialMessages = (source: string) => {
+  const messages = Array.from(source.matchAll(/Serial\.print(?:ln)?\(([^)]+)\)/g)).map((match) => match[1]?.trim() ?? "");
+  if (messages.length === 0) {
+    return ["Serial is quiet – add Serial.println() to stream data."];
+  }
+  return messages.slice(0, 5);
+};
+
 const Simulator = () => {
-  const { user } = useAuth();
   const { isRunning, telemetry, startSimulation, stopSimulation, resetSimulation, executeCode } = useSimulator();
+  const telemetryRef = useRef(telemetry);
+
   const [code, setCode] = useState(defaultCode);
+  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
+  const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle", message: "Ready to simulate" });
   const [serialOutput, setSerialOutput] = useState<string[]>([
     "💡 Tip: Type code, then hit Run to validate and stream live output.",
   ]);
-  const [ledState, setLedState] = useState(false);
-  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
-  const [tutorGuidance, setTutorGuidance] = useState<string>("");
-  const [isTutorAnalyzing, setIsTutorAnalyzing] = useState(false);
-  const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle", message: "Awaiting simulation" });
-  const [simulationState, setSimulationState] = useState<"idle" | "running" | "paused" | "error">("idle");
+  const [digitalUsedPins, setDigitalUsedPins] = useState<number[]>([]);
+  const [analogUsedPins, setAnalogUsedPins] = useState<string[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics>({
+    errors: [],
+    warnings: [],
+    signals: [],
+    ledUsage: false,
+    script: ["Awaiting first run"]
+  });
 
-  const telemetryRef = useRef(telemetry);
-  const currentBoard = boardPresets[board];
-
-  const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
-  const pinAnalysis = useMemo(() => analyzePins(code), [code]);
-
-  const diagnostics = useMemo(() => {
-    const errors = validateSketch(code, currentBoard, pinAnalysis.digitalPins, pinAnalysis.analogPins);
-    const warnings: string[] = [];
-
-    if (pinAnalysis.digitalPins.includes(13) && !pinAnalysis.digitalWrites.some((dw) => dw.toLowerCase().includes("led_builtin"))) {
-      warnings.push("LED_BUILTIN referenced but not driven with digitalWrite.");
-    }
-
-    const signals: string[] = [];
-    if (compiledMessages.length > 0) signals.push("serial");
-    if (/readSensor\s*\(\s*"ultrasonic"/i.test(code)) signals.push("ultrasonic");
-
-    return {
-      errors,
-      warnings,
-      signals,
-      ledUsage: pinAnalysis.digitalWrites.some((dw) => dw.toLowerCase().includes("led_builtin")),
-      script: compiledMessages,
-    };
-  }, [code, compiledMessages, currentBoard, pinAnalysis.analogPins, pinAnalysis.digitalPins, pinAnalysis.digitalWrites]);
-
-  const requestTutorGuidance = async (errors: string[]) => {
-    setIsTutorAnalyzing(true);
-    setTutorGuidance("");
-
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-tutor", {
-        body: {
-          prompt: `You are helping a student debug a microcontroller sketch in a virtual simulator. Please DO NOT give the final code or numeric answers. Ask guiding questions and suggest checkpoints so the student can fix issues themselves.\n\nBoard: ${currentBoard.name}\nDetected problems:\n${errors.map((err) => `- ${err}`).join("\n")}\n\nHere is the current code:\n${code}\n\nRespond with 3-5 short prompts that lead the student to the fix, and end with one reflection question.`,
-          userId: user?.id,
-          action: "chat",
-        },
-      });
-
-      if (error) throw error;
-      setTutorGuidance(data.response || "The tutor could not generate guidance right now.");
-    } catch (error: any) {
-      console.error("Tutor debug error", error);
-      toast.error(error.message || "Failed to get AI tutor guidance");
-    } finally {
-      setIsTutorAnalyzing(false);
-    }
-  };
+  const currentBoard = useMemo(() => boardPresets[board], [board]);
 
   useEffect(() => {
     telemetryRef.current = telemetry;
   }, [telemetry]);
 
   useEffect(() => {
-    if (!isRunning || diagnostics.script.length === 0) return;
+    const { digitalPins, analogPins } = extractUsedPins(code);
+    setDigitalUsedPins(digitalPins);
+    setAnalogUsedPins(analogPins);
+  }, [code]);
 
-    let step = 0;
-    const interval = setInterval(() => {
-      const message = diagnostics.script[step % diagnostics.script.length];
-      setSerialOutput((prev) => [...prev, message]);
-      setLedState((prev) => (diagnostics.ledUsage ? !prev : false));
-      step += 1;
-    }, 900);
+  const validateCode = useCallback(() => {
+    const errors: string[] = [];
 
-    return () => clearInterval(interval);
-  }, [diagnostics.ledUsage, diagnostics.script, isRunning]);
+    if (!/function\s+setup\s*\(/i.test(code)) {
+      errors.push("Missing setup() function to configure pins.");
+    }
+
+    if (!/void\s+loop\s*\(/i.test(code) && !/main\s*\(/i.test(code)) {
+      errors.push("Missing loop() or main() function to run repeatedly.");
+    }
+
+    const signals: string[] = [];
+    if (compiledMessages.length > 0) signals.push("serial");
+    if (/readSensor\s*\(\s*"ultrasonic"/i.test(code)) signals.push("ultrasonic");
+
+    return errors;
+  }, [analogUsedPins, currentBoard, digitalUsedPins, code]);
+
+  const computeDiagnostics = useCallback((): Diagnostics => {
+    const validationErrors = validateCode();
+    const serialMessages = extractSerialMessages(code);
+    const digitalWrites = Array.from(code.matchAll(/digitalWrite\s*\(([^,]+)/gi)).map((match) => match[1]?.trim() ?? "");
+
+    const warnings: string[] = [];
+    if (!/Serial\.begin/i.test(code)) warnings.push("Serial.begin(...) not found – serial monitor will stay quiet.");
+    if (!/setMotor/i.test(code)) warnings.push("setMotor(left, right) is never called – robot will stay idle.");
+
+    const signals = Array.from(new Set(serialMessages.map((msg) => msg.replace(/"/g, ""))));
+
+    return {
+      errors: validationErrors,
+      warnings,
+      signals,
+      ledUsage: digitalWrites.some((dw) => dw.toLowerCase().includes("led_builtin")),
+      script: serialMessages,
+    };
+  }, [code, validateCode]);
+
+  const handleRun = useCallback(() => {
+    const nextDiagnostics = computeDiagnostics();
+    setDiagnostics(nextDiagnostics);
+
+    if (nextDiagnostics.errors.length > 0) {
+      setCompileStatus({ state: "error", message: "Fix the validation issues before running." });
+      setSerialOutput((prev) => [
+        ...prev,
+        "⛔ Simulation blocked: fix the issues below",
+        ...nextDiagnostics.errors.map((err) => `- ${err}`),
+      ]);
+      stopSimulation();
+      return;
+    }
+
+    if (isRunning) {
+      stopSimulation();
+      setCompileStatus({ state: "paused", message: "Simulation paused" });
+      setSerialOutput((prev) => [...prev, "⏸ Simulation paused"]);
+      return;
+    }
+
+    setCompileStatus({ state: "ok", message: "Simulation running" });
+    setSerialOutput((prev) => [...prev, "▶ Simulation started", ...nextDiagnostics.script]);
+    startSimulation();
+    executeCode(code);
+  }, [computeDiagnostics, executeCode, isRunning, startSimulation, stopSimulation, code]);
+
+  const handleReset = useCallback(() => {
+    resetSimulation();
+    setSerialOutput(["💡 Tip: Type code, then hit Run to validate and stream live output."]);
+    setCompileStatus({ state: "idle", message: "Ready to simulate" });
+  }, [resetSimulation]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -232,51 +229,17 @@ const Simulator = () => {
         ...prev.slice(-24),
         `T${new Date().toLocaleTimeString()} :: L:${(snap.leftMotor * 100).toFixed(0)}% R:${(snap.rightMotor * 100).toFixed(0)}% | ultrasonic ${snap.sensors.ultrasonic}m`,
       ]);
-    }, 700);
+    }, 900);
 
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  const handleRun = async () => {
-    const validationErrors = diagnostics.errors;
-
-    if (validationErrors.length > 0) {
-      setSimulationState("error");
-      setCompileStatus({ state: "error", message: `${validationErrors.length} issue(s) detected` });
-      setSerialOutput((prevOutput) => [
-        ...prevOutput,
-        "⛔ Simulation blocked: fix the issues below",
-        ...validationErrors.map((err) => `- ${err}`),
-      ]);
-      await requestTutorGuidance(validationErrors);
-      return;
-    }
-
-    setTutorGuidance("");
-
-    if (isRunning) {
-      stopSimulation();
-      setSimulationState("paused");
-      setCompileStatus({ state: "idle", message: "Simulation paused" });
-      setSerialOutput((prevOutput) => [...prevOutput, "⏸ Simulation paused"]);
-      return;
-    }
-
-    setCompileStatus({ state: "ok", message: "Build succeeded" });
-    setSimulationState("running");
-    setSerialOutput((prevOutput) => [...prevOutput, "▶ Simulation started"]);
-    startSimulation();
-    executeCode(code);
-  };
-
-  const handleReset = () => {
-    resetSimulation();
-    setSerialOutput(["💡 Tip: Type code, then hit Run to validate and stream live output."]);
-    setLedState(false);
-    setTutorGuidance("");
-    setCompileStatus({ state: "idle", message: "Awaiting simulation" });
-    setSimulationState("idle");
-  };
+  const simulationState = useMemo(() => {
+    if (compileStatus.state === "error") return "error";
+    if (isRunning) return "running";
+    if (compileStatus.state === "paused") return "paused";
+    return "idle";
+  }, [compileStatus.state, isRunning]);
 
   return (
     <div className="min-h-screen bg-gradient-cosmic">
@@ -309,7 +272,7 @@ const Simulator = () => {
             <select
               className="w-[220px] rounded-lg border border-border bg-background/50 px-3 py-2 text-sm"
               value={board}
-              onChange={(e) => setBoard(e.target.value as keyof typeof boardPresets)}
+              onChange={(event) => setBoard(event.target.value as keyof typeof boardPresets)}
             >
               <option value="arduino-uno">Arduino Uno</option>
               <option value="arduino-nano">Arduino Nano</option>
@@ -322,8 +285,8 @@ const Simulator = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1.2fr,1fr] gap-6">
-          <Card className="p-6 glass-card space-y-4">
+        <div className="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
+          <Card className="glass-card space-y-4 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Code Editor</h2>
@@ -331,75 +294,75 @@ const Simulator = () => {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleRun} className={isRunning ? "bg-orange-500" : "bg-green-500"}>
-                  {isRunning ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                  {isRunning ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                   {isRunning ? "Pause" : "Run"}
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleReset}>
-                  <RotateCcw className="h-4 w-4 mr-2" />
+                  <RotateCcw className="mr-2 h-4 w-4" />
                   Reset
                 </Button>
               </div>
             </div>
 
-            <div className="border border-border/50 rounded-lg overflow-hidden h-[520px]">
-              <Editor
-                height="100%"
-                defaultLanguage="javascript"
-                theme="vs-dark"
-                value={code}
-                onChange={(value) => setCode(value || "")}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                }}
-              />
-            </div>
+            <CodeEditor value={code} onChange={setCode} language="javascript" />
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border border-border/50 rounded-lg p-3 bg-background/60">
+            <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-background/60 p-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 {compileStatus.state === "ok" && <Shield className="h-4 w-4 text-green-400" />}
                 {compileStatus.state === "error" && <Bug className="h-4 w-4 text-destructive" />}
                 {compileStatus.state === "idle" && <Radio className="h-4 w-4 text-muted-foreground" />}
+                {compileStatus.state === "paused" && <Pause className="h-4 w-4 text-amber-400" />}
                 <span className="text-sm font-medium">{compileStatus.message}</span>
               </div>
               <div className="flex gap-2 text-xs text-muted-foreground">
-                <Button variant="outline" size="sm" onClick={handleRun}>
+                <Button variant="outline" size="sm" onClick={() => setDiagnostics(computeDiagnostics())}>
                   Run validation only
                 </Button>
               </div>
             </div>
+
+            <Card className="p-4 glass-card">
+              <h3 className="text-sm font-semibold mb-2">Serial Monitor</h3>
+              <div className="h-[160px] overflow-y-auto rounded-md border border-border/50 bg-background/60 p-3 font-mono text-xs space-y-1">
+                {serialOutput.map((line, index) => (
+                  <div key={`${line}-${index}`} className="text-foreground/80">
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </Card>
           </Card>
 
           <div className="space-y-6">
-            <Card className="p-4 glass-card">
-              <div className="flex items-center justify-between mb-3">
+            <Card className="glass-card p-4">
+              <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">Virtual Board</h2>
                   <p className="text-xs text-muted-foreground">{currentBoard.name} · live LED feedback</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Radio className={`h-3 w-3 ${isRunning ? "text-green-400" : "text-muted-foreground"}`} />
-                  {simulationState === "error" ? "Error" : isRunning ? "Live" : "Idle"}
+                  {isRunning ? "Live" : "Idle"}
                 </div>
               </div>
-              <div className={`relative rounded-xl p-4 min-h-[320px] border bg-gradient-to-br ${currentBoard.color} overflow-hidden`}>
+              <div className={`relative min-h-[320px] overflow-hidden rounded-xl border bg-gradient-to-br ${currentBoard.color}`}>
                 <div className="absolute inset-0 bg-black/20" />
-                <div className="relative z-10 space-y-4">
-                  <div className="flex items-center justify-between text-white text-xs font-mono">
+                <div className="relative z-10 space-y-4 p-4">
+                  <div className="flex items-center justify-between text-xs font-mono text-white">
                     <span>{currentBoard.label}</span>
                     <span className="flex items-center gap-1">
                       <Zap className="h-3 w-3" /> 5V rail
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Digital Pins</div>
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 shadow-inner">
+                      <div className="mb-2 text-xs text-white/80">Digital Pins</div>
                       <div className="grid grid-cols-5 gap-2 text-[10px] text-white/90">
                         {[...Array(currentBoard.lanes).keys()].map((lane) => (
                           <div
                             key={lane}
-                            className={`px-2 py-1 rounded border text-center transition-colors duration-200 ${
-                              pinAnalysis.digitalPins.includes(lane + 2)
+                            className={`rounded border px-2 py-1 text-center transition-colors duration-200 ${
+                              digitalUsedPins.includes(lane + 2)
                                 ? "bg-emerald-300 text-black border-white/60"
                                 : "bg-white/10 border-white/5"
                             }`}
@@ -409,14 +372,14 @@ const Simulator = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Power &amp; Analog</div>
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 shadow-inner">
+                      <div className="mb-2 text-xs text-white/80">Power & Analog</div>
                       <div className="flex flex-wrap gap-2 text-[10px] text-white/90">
                         {powerAndAnalogPins.map((label) => (
                           <div
                             key={label}
-                            className={`px-2 py-1 rounded border ${
-                              pinAnalysis.analogPins.includes(label)
+                            className={`rounded border px-2 py-1 ${
+                              analogUsedPins.includes(label)
                                 ? "bg-emerald-300 text-black border-white/60"
                                 : "bg-white/10 border-white/5"
                             }`}
@@ -430,13 +393,13 @@ const Simulator = () => {
                   <p className="text-[11px] text-white/80">Highlighted pins are in use in your sketch.</p>
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
-                        ledState && diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
+                      className={`h-10 w-10 rounded-full border-4 border-white/40 shadow-lg transition-all duration-300 ${
+                        diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
                       }`}
                     />
-                    <div className="text-white text-sm">
+                    <div className="text-sm text-white">
                       <div className="font-semibold">Built-in LED</div>
-                      <p className="text-white/80 text-xs">
+                      <p className="text-xs text-white/80">
                         {diagnostics.ledUsage
                           ? "Toggles when code hits digitalWrite(LED_BUILTIN, ...)"
                           : "Add LED_BUILTIN writes to visualize activity"}
@@ -444,71 +407,66 @@ const Simulator = () => {
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
+            </Card>
 
-              <Card className="p-4 glass-card">
-                <h2 className="text-lg font-semibold mb-3">3D Scene</h2>
-                <SimulatorCanvas telemetry={telemetry} />
-              </Card>
+            <Card className="glass-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">3D Scene</h2>
+              <SimulatorCanvas telemetry={telemetry} />
+            </Card>
 
-              <Card className="p-6 glass-card">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold">Compilation &amp; Health</h2>
-                  <div
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      simulationState === "running"
-                        ? "bg-emerald-500/15 text-emerald-400"
-                        : simulationState === "error"
-                          ? "bg-red-500/15 text-red-400"
-                          : simulationState === "paused"
-                            ? "bg-amber-500/15 text-amber-400"
-                            : "bg-slate-500/15 text-slate-300"
-                    }`}
-                  >
-                    {simulationState === "running"
-                      ? "Running"
-                      : simulationState === "error"
-                        ? "Build errors"
-                        : simulationState === "paused"
-                          ? "Paused"
-                          : "Idle"}
+            <Card className="glass-card p-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Compilation &amp; Health</h2>
+                <div
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    simulationState === "running"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : compileStatus.state === "error"
+                        ? "bg-red-500/15 text-red-400"
+                        : compileStatus.state === "ok"
+                          ? "bg-blue-500/15 text-blue-300"
+                          : "bg-slate-500/15 text-slate-300"
+                  }`}
+                >
+                  {isRunning ? "Running" : compileStatus.state === "error" ? "Build errors" : compileStatus.state === "ok" ? "Validated" : "Idle"}
+                </div>
+
+              <div className="space-y-2 text-sm">
+                {diagnostics.errors.length === 0 ? (
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <Sparkles className="h-4 w-4" />
+                    Sketch passes quick validation
                   </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  {diagnostics.errors.length === 0 ? (
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <Sparkles className="h-4 w-4" />
-                      Sketch passes quick validation
+                ) : (
+                  diagnostics.errors.map((err, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-red-300">
+                      <Bug className="mt-0.5 h-4 w-4" />
+                      <span>{err}</span>
                     </div>
-                  ) : (
-                    diagnostics.errors.map((err, idx) => (
-                      <div key={idx} className="flex items-start gap-2 text-red-300">
-                        <Bug className="h-4 w-4 mt-0.5" />
-                        <span>{err}</span>
-                      </div>
-                    ))
-                  )}
+                  ))
+                )}
 
-                  {diagnostics.warnings.map((warn, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-amber-300">
-                      <Radio className="h-4 w-4 mt-0.5" />
-                      <span>{warn}</span>
-                    </div>
-                  ))}
+                {diagnostics.warnings.map((warn, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-amber-300">
+                    <Radio className="mt-0.5 h-4 w-4" />
+                    <span>{warn}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
-                  {diagnostics.signals.length > 0 && (
-                    <div className="pt-2 text-xs text-muted-foreground">
-                      Signals detected: {diagnostics.signals.join(", ")}
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              <Card className="p-6 glass-card">
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">AI Tutor Debugger</h2>
+            <Card className="glass-card p-6">
+              <div className="mb-2 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">AI Tutor Debugger</h2>
+              </div>
+              <p className="mb-4 text-sm text-muted-foreground">
+                When the simulator spots an issue, the AI tutor will ask guiding questions instead of giving the answer.
+              </p>
+              {diagnostics.errors.length > 0 ? (
+                <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+                  Review the errors above and fix them to continue.
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
                   When the simulator spots an issue, the AI tutor will ask guiding questions instead of giving the answer.
@@ -529,6 +487,19 @@ const Simulator = () => {
             </div>
           </div>
         </div>
+
+        <Card className="p-6 glass-card">
+          <h2 className="text-lg font-semibold mb-3">Serial Monitor</h2>
+          <ScrollArea className="h-48 rounded-md border border-border/50 p-3 bg-background/60 font-mono text-sm">
+            <div className="space-y-1">
+              {serialOutput.map((line, index) => (
+                <div key={`${line}-${index}`} className="text-foreground/80">
+                  {line}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </Card>
       </div>
     </div>
   );
