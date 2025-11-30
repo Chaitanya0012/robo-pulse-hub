@@ -1,142 +1,22 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import Navigation from "@/components/Navigation";
 import CollaborationDialog from "@/components/CollaborationDialog";
-import {
-  Zap,
-  Target,
-  Users,
-  TrendingUp,
-  Sparkles,
-  Rocket,
-  Mail,
-  ArrowRight,
-  Star,
-  Compass,
-  Workflow,
-  BrainCircuit,
-  ShieldCheck,
-  Activity,
-  Trophy,
-} from "lucide-react";
+import { Zap, Target, Users, TrendingUp, Sparkles, Rocket, Mail, ArrowRight, Star, Gauge, Brain, Shield, Medal } from "lucide-react";
 import heroImage from "@/assets/hero-robotics.jpg";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { usePlatformStats } from "@/hooks/usePlatformStats";
+import { LEVEL_THRESHOLDS, XP_REWARDS } from "@/hooks/useXP";
 
 const Index = () => {
   const { user } = useAuth();
   const { collaborations, isLoading } = useCollaboration();
   const { stats: platformStats } = usePlatformStats();
-  const navigate = useNavigate();
-
-  const [planInput, setPlanInput] = useState("");
-  const [trainingConsent, setTrainingConsent] = useState(false);
-  const [dailyPlan, setDailyPlan] = useState([
-    {
-      title: "Warm up with a quick quiz",
-      description: "Test your fundamentals and unlock XP before diving into projects.",
-      action: () => navigate("/quiz-dashboard"),
-    },
-    {
-      title: "Build in the simulator",
-      description: "Load the ESP32/Arduino sandbox and prototype without hardware.",
-      action: () => navigate("/simulator"),
-    },
-    {
-      title: "Skim a human-grade article",
-      description: "Pick a topic in the Learn section and highlight key takeaways.",
-      action: () => navigate("/learn"),
-    },
-  ]);
-  const [navConfidence, setNavConfidence] = useState(84);
-  const [navPlan, setNavPlan] = useState(
-    () =>
-      [
-        {
-          title: "Prototype & scope",
-          detail: "Lock in constraints and what success means for today",
-          eta: "15 min",
-          status: "ready" as const,
-        },
-        {
-          title: "Simulate the firmware",
-          detail: "Use the board sandbox to validate pin logic before wiring",
-          eta: "25 min",
-          status: "queued" as const,
-        },
-        {
-          title: "Test your recall",
-          detail: "Run a 5-question check to solidify what you just built",
-          eta: "10 min",
-          status: "queued" as const,
-        },
-      ]
-  );
-  const [navLog, setNavLog] = useState([
-    "Navigator listening for your goal...",
-    "Telemetry: simulator available · quizzes synced",
-  ]);
-
-  const createNavigatorPlan = (goal: string) => {
-    const trimmedGoal = goal.trim() || "Ship a stable robot demo";
-    return [
-      {
-        title: "Define done & guardrails",
-        detail: `Success looks like: ${trimmedGoal}. Write 3 checks you can verify in the simulator and one real-world fallback.`,
-        eta: "5 min",
-        status: "READY",
-      },
-      {
-        title: "Prototype in simulator",
-        detail: "Load your board preset, wire virtual sensors, and stream telemetry to catch logic bugs before hardware.",
-        eta: "12 min",
-        status: "RUNNING",
-      },
-      {
-        title: "Navigation sanity",
-        detail: "Record a 90-second run with obstacles. If ultrasonic < 0.3m, trigger a slow-turn recovery routine.",
-        eta: "8 min",
-        status: "PENDING",
-      },
-      {
-        title: "Quiz & lock-in",
-        detail: "Take a 4-question checkpoint on today’s topic to close the loop and earn XP.",
-        eta: "4 min",
-        status: "PENDING",
-      },
-    ];
-  };
-
-  const navigatorPlan = useMemo(() => createNavigatorPlan(planInput), [planInput]);
-
-  const [navActions, setNavActions] = useState([
-    {
-      title: "Flash-check hardware",
-      detail: "Verify board selection, comms, and upload settings before touching code.",
-      eta: "2 min",
-    },
-    {
-      title: "Generate test loop",
-      detail: "Run a tiny loop to blink and echo serial output to prove the toolchain.",
-      eta: "4 min",
-    },
-  ]);
-  const [navSignal, setNavSignal] = useState("Navigation AI is waiting for a goal.");
-  const [navRisks, setNavRisks] = useState([
-    {
-      label: "Simulator parity",
-      status: "Pending",
-      mitigation: "Run the validation sweep before pushing code to hardware.",
-    },
-    {
-      label: "Sensor trust",
-      status: "Pending",
-      mitigation: "Cross-check ultrasonic readings with simulated wall distance.",
-    },
-  ]);
+  const isLoggedIn = Boolean(user);
 
   const features = [
     {
@@ -161,41 +41,37 @@ const Index = () => {
     },
   ];
 
-  const blueprintSteps = [
+  const masteryPillars = [
     {
-      icon: Compass,
-      title: "Choose Your Mission",
-      description: "Pick a robotics focus area and we’ll scaffold a personalized learning path with milestones.",
+      icon: Gauge,
+      title: "XP Momentum",
+      description: "Unlock new robotics titles as you progress from Novice to Grand Robotics Master.",
+      accent: "Live leveling",
     },
     {
-      icon: Workflow,
-      title: "Build & Iterate",
-      description: "Work through interactive lessons, simulations, and collaborative projects with mentor feedback.",
+      icon: Brain,
+      title: "AI Tutor Guidance",
+      description: "Personalized study plans and quiz feedback keep your learning on track.",
+      accent: "Adaptive feedback",
     },
     {
-      icon: Trophy,
-      title: "Earn & Showcase",
-      description: "Collect XP, unlock badges, and share your robotics portfolio as you level up.",
+      icon: Shield,
+      title: "Confidence Coaching",
+      description: "Skill sliders help you assess strengths, close gaps, and earn bonus XP.",
+      accent: "Skill mapping",
     },
   ];
 
-  const trustSignals = [
-    {
-      icon: BrainCircuit,
-      title: "AI-Powered Guidance",
-      description: "Adaptive hints and an AI tutor keep you unblocked while reinforcing robotics fundamentals.",
-    },
-    {
-      icon: Activity,
-      title: "Progress You Can See",
-      description: "Dashboards, XP widgets, and level ladders make every learning win visible.",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Reliable Community",
-      description: "Moderated resources, verified projects, and safe collaboration spaces you can trust.",
-    },
-  ];
+  const sampleXP = {
+    currentXP: 2450,
+    currentLevel: LEVEL_THRESHOLDS.find(level => level.level === 4),
+    nextLevel: LEVEL_THRESHOLDS.find(level => level.level === 5),
+  };
+
+  const currentLevelXP = sampleXP.currentLevel?.xp || 0;
+  const nextLevelXP = sampleXP.nextLevel?.xp || currentLevelXP;
+  const levelRange = Math.max(1, nextLevelXP - currentLevelXP);
+  const progressToNextLevel = Math.min(100, Math.max(0, ((sampleXP.currentXP - currentLevelXP) / levelRange) * 100));
 
   return (
     <div className="min-h-screen bg-gradient-cosmic overflow-hidden">
@@ -237,13 +113,13 @@ const Index = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Link to="/auth" className="group">
-                  <Button 
-                    size="lg" 
+                <Link to={isLoggedIn ? "/dashboard" : "/auth"} className="group">
+                  <Button
+                    size="lg"
                     className="w-full sm:w-auto text-lg px-8 py-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-glow-cyan glow-border"
                   >
                     <Zap className="mr-2 h-5 w-5 group-hover:animate-glow-pulse" />
-                    Get Started Free
+                    {isLoggedIn ? "Go to Dashboard" : "Get Started Free"}
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
@@ -513,76 +389,107 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Blueprint Section */}
-      <section className="py-24 px-4 relative">
-        <div className="container mx-auto">
-          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-start">
-            <div className="space-y-6">
-              <div className="inline-block px-4 py-2 glass-card rounded-full mb-2">
-                <span className="text-sm font-medium text-primary">How RoboJourney Works</span>
+      {/* XP & Mastery Section */}
+      <section className="py-24 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 premium-gradient opacity-40" />
+        <div className="container mx-auto relative z-10">
+          <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 items-start">
+            <Card className="p-10 glass-card glow-border animate-reveal space-y-8">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-primary mb-2">RoboJourney XP Engine</p>
+                  <h3 className="text-4xl font-bold">Track your mastery in real time</h3>
+                  <p className="text-muted-foreground mt-2">A preview of what learners see on the dashboard.</p>
+                </div>
+                <div className="px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-sm font-medium">
+                  Level {sampleXP.currentLevel?.level}
+                </div>
               </div>
-              <h2 className="text-5xl font-bold leading-tight">
-                A clear blueprint for becoming a robotics leader
-              </h2>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Whether you are exploring sensors or shipping autonomous builds, we guide you through every phase with
-                structure, accountability, and momentum you can actually feel in the product.
-              </p>
 
-              <div className="space-y-4">
-                {blueprintSteps.map((step, index) => (
-                  <Card
-                    key={step.title}
-                    className="p-6 glass-card glow-border flex gap-4 items-start animate-reveal"
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <div className="p-3 rounded-2xl premium-gradient">
-                      <step.icon className="h-6 w-6 text-primary" />
-                    </div>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-2xl bg-card/60 border border-border/40">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
-                      <div className="text-xs uppercase tracking-widest text-primary mb-1">Step {index + 1}</div>
-                      <h3 className="text-xl font-semibold mb-1">{step.title}</h3>
-                      <p className="text-muted-foreground leading-relaxed">{step.description}</p>
+                      <p className="text-sm text-muted-foreground">Current XP</p>
+                      <p className="text-3xl font-bold">{sampleXP.currentXP.toLocaleString()} XP</p>
+                    </div>
+                    <Badge variant="secondary" className="text-sm">
+                      {sampleXP.currentLevel?.title}
+                    </Badge>
+                  </div>
+                  <Progress value={progressToNextLevel} className="h-3 mb-3" />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>{currentLevelXP.toLocaleString()} XP</span>
+                    <span>Next: {nextLevelXP.toLocaleString()} XP</span>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-secondary/15 to-primary/10 border border-secondary/40">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Medal className="h-10 w-10 text-secondary" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">XP rewards preview</p>
+                      <p className="text-lg font-semibold">Earn XP with every action</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(XP_REWARDS).slice(0, 6).map(([key, value]) => (
+                      <div key={key} className="p-3 rounded-xl bg-card/70 border border-border/40">
+                        <p className="font-semibold capitalize">{key.replace(/_/g, " ")}</p>
+                        <p className="text-sm text-primary font-medium">+{value} XP</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                {LEVEL_THRESHOLDS.slice(0, 6).map((level) => (
+                  <div key={level.level} className="p-4 rounded-xl bg-card/70 border border-border/40">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Level {level.level}</p>
+                    <p className="font-semibold">{level.title}</p>
+                    <p className="text-sm text-primary font-medium mt-2">{level.xp.toLocaleString()} XP</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-primary/15 border border-primary/30">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Designed for clarity</p>
+                  <h4 className="text-2xl font-bold">What learners see first</h4>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {masteryPillars.map((pillar, index) => (
+                  <Card
+                    key={pillar.title}
+                    className="p-6 glass-card glow-border animate-scale-in"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl premium-gradient">
+                        <pillar.icon className="h-6 w-6 text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <h5 className="text-xl font-bold">{pillar.title}</h5>
+                          <Badge variant="outline" className="border-border/40 text-xs">
+                            {pillar.accent}
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">{pillar.description}</p>
+                      </div>
                     </div>
                   </Card>
                 ))}
               </div>
             </div>
-
-            <Card className="p-10 glass-card glow-border sticky top-10 animate-scale-in">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary mb-6">
-                <Activity className="h-4 w-4" />
-                Live platform momentum
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10">
-                  <div className="text-sm text-muted-foreground">Learners building today</div>
-                  <div className="text-3xl font-bold text-primary mt-1">
-                    {platformStats?.totalLearners ?? 0}+
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">Active profiles and counting</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-secondary/10 to-accent/10">
-                  <div className="text-sm text-muted-foreground">Robotics projects shipped</div>
-                  <div className="text-3xl font-bold text-secondary mt-1">
-                    {platformStats?.totalProjects ?? 0}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">Documented builds on the platform</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-accent/10 to-primary/10">
-                  <div className="text-sm text-muted-foreground">Curated resources</div>
-                  <div className="text-3xl font-bold text-accent mt-1">
-                    {platformStats?.totalResources ?? 0}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">Mentor-approved learning assets</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-muted/20 to-primary/5">
-                  <div className="text-sm text-muted-foreground">Weekly XP earned</div>
-                  <div className="text-3xl font-bold text-foreground mt-1">25,000+</div>
-                  <p className="text-sm text-muted-foreground mt-1">Learners progressing every week</p>
-                </div>
-              </div>
-            </Card>
           </div>
         </div>
       </section>
@@ -709,13 +616,13 @@ const Index = () => {
               <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
                 Join thousands of learners transforming their robotics skills with RoboJourney
               </p>
-              <Link to="/auth" className="inline-block group">
-                <Button 
-                  size="lg" 
+              <Link to={isLoggedIn ? "/dashboard" : "/auth"} className="inline-block group">
+                <Button
+                  size="lg"
                   className="text-xl px-12 py-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-glow-cyan glow-border"
                 >
                   <Zap className="mr-3 h-6 w-6 group-hover:animate-glow-pulse" />
-                  Create Free Account
+                  {isLoggedIn ? "Open Dashboard" : "Create Free Account"}
                   <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
