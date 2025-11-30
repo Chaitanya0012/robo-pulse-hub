@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Shield, Bug, Brain, Sparkles } from "lucide-react";
 
 import Navigation from "@/components/Navigation";
+import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
+import { CodeEditor } from "@/components/simulator/CodeEditor";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -254,8 +257,8 @@ const Simulator = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1.2fr,1fr] gap-6">
-          <Card className="p-6 glass-card space-y-4">
+        <div className="grid gap-6 lg:grid-cols-[1.2fr,1fr]">
+          <Card className="glass-card space-y-4 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Code Editor</h2>
@@ -263,11 +266,11 @@ const Simulator = () => {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleRun} className={isRunning ? "bg-orange-500" : "bg-green-500"}>
-                  {isRunning ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                  {isRunning ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                   {isRunning ? "Pause" : "Run"}
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleReset}>
-                  <RotateCcw className="h-4 w-4 mr-2" />
+                  <RotateCcw className="mr-2 h-4 w-4" />
                   Reset
                 </Button>
               </div>
@@ -275,7 +278,7 @@ const Simulator = () => {
 
             <CodeEditor value={code} onChange={setCode} language="javascript" />
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between border border-border/50 rounded-lg p-3 bg-background/60">
+            <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-background/60 p-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 {compileStatus.state === "ok" && <Shield className="h-4 w-4 text-green-400" />}
                 {compileStatus.state === "error" && <Bug className="h-4 w-4 text-destructive" />}
@@ -303,8 +306,8 @@ const Simulator = () => {
           </Card>
 
           <div className="space-y-6">
-            <Card className="p-4 glass-card">
-              <div className="flex items-center justify-between mb-3">
+            <Card className="glass-card p-4">
+              <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">Virtual Board</h2>
                   <p className="text-xs text-muted-foreground">{currentBoard.name} · live LED feedback</p>
@@ -314,23 +317,23 @@ const Simulator = () => {
                   {simulationState === "error" ? "Error" : isRunning ? "Live" : "Idle"}
                 </div>
               </div>
-              <div className={`relative rounded-xl p-4 min-h-[320px] border bg-gradient-to-br ${currentBoard.color} overflow-hidden`}>
+              <div className={`relative min-h-[320px] overflow-hidden rounded-xl border bg-gradient-to-br ${currentBoard.color}`}>
                 <div className="absolute inset-0 bg-black/20" />
-                <div className="relative z-10 space-y-4">
-                  <div className="flex items-center justify-between text-white text-xs font-mono">
+                <div className="relative z-10 space-y-4 p-4">
+                  <div className="flex items-center justify-between text-xs font-mono text-white">
                     <span>{currentBoard.label}</span>
                     <span className="flex items-center gap-1">
                       <Zap className="h-3 w-3" /> 5V rail
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Digital Pins</div>
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 shadow-inner">
+                      <div className="mb-2 text-xs text-white/80">Digital Pins</div>
                       <div className="grid grid-cols-5 gap-2 text-[10px] text-white/90">
                         {[...Array(currentBoard.lanes).keys()].map((lane) => (
                           <div
                             key={lane}
-                            className={`px-2 py-1 rounded border text-center transition-colors duration-200 ${
+                            className={`rounded border px-2 py-1 text-center transition-colors duration-200 ${
                               digitalUsedPins.includes(lane + 2)
                                 ? "bg-emerald-300 text-black border-white/60"
                                 : "bg-white/10 border-white/5"
@@ -341,13 +344,13 @@ const Simulator = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="bg-black/30 rounded-lg p-4 border border-white/10 shadow-inner">
-                      <div className="text-white/80 text-xs mb-2">Power & Analog</div>
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-4 shadow-inner">
+                      <div className="mb-2 text-xs text-white/80">Power & Analog</div>
                       <div className="flex flex-wrap gap-2 text-[10px] text-white/90">
                         {powerAndAnalogPins.map((label) => (
                           <div
                             key={label}
-                            className={`px-2 py-1 rounded border ${
+                            className={`rounded border px-2 py-1 ${
                               analogUsedPins.includes(label)
                                 ? "bg-emerald-300 text-black border-white/60"
                                 : "bg-white/10 border-white/5"
@@ -362,13 +365,13 @@ const Simulator = () => {
                   <p className="text-[11px] text-white/80">Highlighted pins are in use in your sketch.</p>
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
+                      className={`h-10 w-10 rounded-full border-4 border-white/40 shadow-lg transition-all duration-300 ${
                         diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
                       }`}
                     />
-                    <div className="text-white text-sm">
+                    <div className="text-sm text-white">
                       <div className="font-semibold">Built-in LED</div>
-                      <p className="text-white/80 text-xs">
+                      <p className="text-xs text-white/80">
                         {diagnostics.ledUsage
                           ? "Toggles when code hits digitalWrite(LED_BUILTIN, ...)"
                           : "Add LED_BUILTIN writes to visualize activity"}
@@ -379,21 +382,16 @@ const Simulator = () => {
               </div>
             </Card>
 
-            <Card className="p-4 glass-card">
-              <h2 className="text-lg font-semibold mb-3">3D Scene</h2>
+            <Card className="glass-card p-4">
+              <h2 className="mb-3 text-lg font-semibold">3D Scene</h2>
               <SimulatorCanvas telemetry={telemetry} />
             </Card>
 
-            <Card className="p-4 glass-card">
-              <h2 className="text-lg font-semibold mb-3">Telemetry</h2>
-              <TelemetryPanel telemetry={telemetry} />
-            </Card>
-
-            <Card className="p-6 glass-card">
-              <div className="flex items-center justify-between mb-3">
+            <Card className="glass-card p-6">
+              <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Compilation &amp; Health</h2>
                 <div
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
                     simulationState === "running"
                       ? "bg-emerald-500/15 text-emerald-400"
                       : simulationState === "error"
@@ -422,7 +420,7 @@ const Simulator = () => {
                 ) : (
                   diagnostics.errors.map((err, idx) => (
                     <div key={idx} className="flex items-start gap-2 text-red-300">
-                      <Bug className="h-4 w-4 mt-0.5" />
+                      <Bug className="mt-0.5 h-4 w-4" />
                       <span>{err}</span>
                     </div>
                   ))
@@ -430,7 +428,7 @@ const Simulator = () => {
 
                 {diagnostics.warnings.map((warn, idx) => (
                   <div key={idx} className="flex items-start gap-2 text-amber-300">
-                    <Radio className="h-4 w-4 mt-0.5" />
+                    <Radio className="mt-0.5 h-4 w-4" />
                     <span>{warn}</span>
                   </div>
                 ))}
@@ -443,17 +441,26 @@ const Simulator = () => {
               </div>
             </Card>
 
-            <Card className="p-6 glass-card">
-              <div className="flex items-center gap-2 mb-2">
+            <Card className="glass-card p-6">
+              <div className="mb-2 flex items-center gap-2">
                 <Brain className="h-5 w-5 text-primary" />
                 <h2 className="text-xl font-semibold">AI Tutor Debugger</h2>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                When the simulator spots an issue, you can use the warnings above to guide your debugging session.
+              <p className="mb-4 text-sm text-muted-foreground">
+                When the simulator spots an issue, the AI tutor will ask guiding questions instead of giving the answer.
               </p>
-              <div className="text-sm text-muted-foreground">
-                Run the simulator to see guided debugging tips here.
-              </div>
+              {isTutorAnalyzing ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary"></div>
+                  <span>AI tutor is reviewing your code...</span>
+                </div>
+              ) : tutorGuidance ? (
+                <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+                  {tutorGuidance}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Run the simulator to see guided debugging tips here.</div>
+              )}
             </Card>
           </div>
         </div>
