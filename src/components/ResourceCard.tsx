@@ -84,37 +84,26 @@ const ResourceCard = ({ title, description, category, difficulty, type, rating =
                 <ExternalLink className="h-4 w-4 mr-1 group-hover:animate-glow-pulse" />
                 Open
               </a>
-              <Button asChild size="sm" variant="secondary" className="group">
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  referrerPolicy="no-referrer"
-                  className="inline-flex items-center"
-                >
-                  <ExternalLink className="h-4 w-4 mr-1 group-hover:animate-glow-pulse" />
-                  Open
-                </a>
-              </Button>
-            </div>
+            </Button>
+          </div>
         </div>
       )}
-        {ratingCount > 0 && (
-          <div className="flex items-center gap-1 mb-3 text-sm">
-            <Star className="h-4 w-4 fill-primary text-primary" />
-            <span className="font-medium">{rating.toFixed(1)}</span>
-            <span className="text-muted-foreground">({ratingCount} reviews)</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            <Badge variant="secondary" className="text-xs">
-              {category}
-            </Badge>
-            <Badge className={`text-xs ${difficultyColors[difficulty]}`}>
-              {difficulty}
-            </Badge>
-          </div>
+      {ratingCount > 0 && (
+        <div className="flex items-center gap-1 mb-3 text-sm">
+          <Star className="h-4 w-4 fill-primary text-primary" />
+          <span className="font-medium">{rating.toFixed(1)}</span>
+          <span className="text-muted-foreground">({ratingCount} reviews)</span>
+        </div>
+      )}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Badge variant="secondary" className="text-xs">
+            {category}
+          </Badge>
+          <Badge className={`text-xs ${difficultyColors[difficulty]}`}>
+            {difficulty}
+          </Badge>
+        </div>
       </div>
     </Card>
   );
