@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Flame, Sparkles, Target } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { Progress } from "@/components/ui/progress";
 
@@ -56,7 +57,8 @@ export default function QuizAdvanced() {
   }, [articleId]);
 
   const currentQ = questions[currentIndex];
-  const progressPercent = questions.length > 0 ? Math.round(((currentIndex + 1) / questions.length) * 100) : 0;
+  const progress = questions.length ? Math.round((currentIndex / questions.length) * 100) : 0;
+  const wrongVsRight = article?.wrong_vs_right;
 
   const handleAnswer = (idx: number) => {
     if (!currentQ || feedback) return;
@@ -113,42 +115,52 @@ export default function QuizAdvanced() {
             </div>
           )}
 
-          <div className="mb-6 grid gap-4 md:grid-cols-[1.4fr,1fr]">
-            <div className="p-4 rounded-2xl bg-card border border-border shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-3 mb-6">
+            <div className="p-4 rounded-xl bg-card border border-border">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Progress</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-secondary"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">Question {currentIndex + 1} of {questions.length}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase text-muted-foreground tracking-[0.2em]">Question {currentIndex + 1} / {questions.length}</p>
-                  <h2 className="text-xl font-semibold">Session Pulse</h2>
+                <div className="flex items-center gap-2 text-amber-500">
+                  <Flame className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Streak</span>
                 </div>
-                <div className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/40">
-                  {currentQ?.difficulty || "adaptive"}
-                </div>
+                <span className="text-lg font-semibold">{stats.streak}</span>
               </div>
-              <div className="mt-3">
-                <Progress value={progressPercent} className="h-2" />
-                <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                  <span>Progress</span>
-                  <span>{progressPercent}% complete</span>
+              <p className="text-sm text-muted-foreground mt-2">
+                {stats.streak >= 3 ? "You're on fire—keep the momentum." : "Build your streak for bonus confidence."}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-primary/10 border border-emerald-500/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-500">
+                  <Target className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Focus</span>
                 </div>
+                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/10 text-white">
+                  +10 XP per correct
+                </span>
               </div>
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
-                  <p className="text-xs text-muted-foreground">XP</p>
-                  <p className="text-lg font-semibold">{stats.xp}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-200/30">
-                  <p className="text-xs text-muted-foreground">Streak</p>
-                  <p className="text-lg font-semibold text-emerald-400">{stats.streak}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-200/30">
-                  <p className="text-xs text-muted-foreground">Correct</p>
-                  <p className="text-lg font-semibold text-emerald-300">{stats.correct}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-red-500/5 border border-red-200/30">
-                  <p className="text-xs text-muted-foreground">Missed</p>
-                  <p className="text-lg font-semibold text-red-300">{stats.incorrect}</p>
-                </div>
-              </div>
+              <p className="text-sm font-semibold mt-2">{currentQ?.difficulty || "Challenge"}</p>
+              <p className="text-sm text-muted-foreground">Answer to unlock the next robotics nugget.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              Question {currentIndex + 1} of {questions.length}
             </div>
 
             <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/10 to-background border border-border/60 shadow-sm">
@@ -248,17 +260,24 @@ export default function QuizAdvanced() {
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 rounded-xl bg-card border border-border"
             >
-              <h4 className="font-semibold mb-2">Explanation</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold">Explanation</h4>
+                <div className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Instant feedback
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground">{currentQ.explanation}</p>
-              {article?.wrong_vs_right && (
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <div className="p-3 rounded-lg bg-red-500/5 border border-red-200/30">
-                    <p className="text-xs uppercase tracking-wide text-red-200">Common mistake</p>
-                    <p className="text-sm text-muted-foreground">{article.wrong_vs_right.wrong}</p>
+
+              {wrongVsRight && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-xs text-red-200 uppercase">Common mistake</p>
+                    <p className="text-sm text-red-100">{wrongVsRight.wrong}</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-200/30">
-                    <p className="text-xs uppercase tracking-wide text-emerald-200">Do this instead</p>
-                    <p className="text-sm text-muted-foreground">{article.wrong_vs_right.right}</p>
+                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <p className="text-xs text-emerald-200 uppercase">Ideal answer</p>
+                    <p className="text-sm text-emerald-100">{wrongVsRight.right}</p>
                   </div>
                 </div>
               )}

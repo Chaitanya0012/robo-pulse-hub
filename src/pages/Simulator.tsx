@@ -5,36 +5,17 @@ import Editor from "@monaco-editor/react";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useSimulator } from "@/hooks/useSimulator";
-import { SimulatorCanvas } from "@/components/simulator/SimulatorCanvas";
-import { TelemetryPanel } from "@/components/simulator/TelemetryPanel";
+import { Play, Pause, RotateCcw, Download, Cpu, Zap, Radio, Bug, Sparkles } from "lucide-react";
+import Navigation from "@/components/Navigation";
+import Editor from "@monaco-editor/react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const starterSketch = `// Async-friendly sketch. The simulator exposes setMotor(left, right), readSensor(name), and sleep(ms).
-async function main(setMotor, readSensor, sleep, console) {
-  console.log("Booting rover...");
-  await sleep(150);
-
-  // Roll forward gently
-  setMotor(0.35, 0.35);
-  await sleep(600);
-
-  // Probe the ultrasonic sensor
-  const distance = await readSensor("ultrasonic");
-  console.log("Ultrasonic distance:", distance, "m");
-
-  if (distance < 0.6) {
-    console.log("Obstacle detected → backing up and rotating");
-    setMotor(-0.25, 0.25);
-    await sleep(400);
-  }
-
-  // Finish with a short sprint
-  setMotor(0.6, 0.6);
-  await sleep(450);
-  setMotor(0, 0);
-  console.log("Sequence complete");
+const defaultCode = `// Arduino-style robot code
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(2, OUTPUT); // Motor A
+  pinMode(3, OUTPUT); // Motor B
+  Serial.begin(9600);
 }
 
 main(setMotor, readSensor, sleep, console);`;
@@ -45,78 +26,137 @@ type CompileStatus = {
 };
 
 const Simulator = () => {
-  const [code, setCode] = useState(starterSketch);
-  const [serialOutput, setSerialOutput] = useState<string[]>(["Ready for upload…"]);
-  const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle", message: "Awaiting validation" });
-
-  const { isRunning, telemetry, startSimulation, stopSimulation, resetSimulation, executeCode } = useSimulator();
-  const telemetryRef = useRef(telemetry);
+  const [code, setCode] = useState(defaultCode);
+  const [isRunning, setIsRunning] = useState(false);
+  const [serialOutput, setSerialOutput] = useState<string[]>([
+    "💡 Tip: Type code, then hit Run to validate and stream live output.",
+  ]);
+  const [ledState, setLedState] = useState(false);
+  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
+  const [diagnostics, setDiagnostics] = useState<{
+    errors: string[];
+    warnings: string[];
+    signals: string[];
+    ledUsage: boolean;
+    script: string[];
+  }>({
+    errors: [],
+    warnings: [],
+    signals: [],
+    ledUsage: true,
+    script: [],
+  });
+  const [simulationState, setSimulationState] = useState<
+    "idle" | "running" | "paused" | "error"
+  >("idle");
 
   const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
+
+  const analyzeCode = (sketch: string) => {
+    const normalized = sketch.toLowerCase();
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const signals: string[] = [];
+    const script: string[] = [];
+
+    if (!normalized.includes("setup")) {
+      errors.push("Missing setup() function – pins are never initialized.");
+    }
+    if (!normalized.includes("loop")) {
+      errors.push("Missing loop() function – the firmware will exit immediately.");
+    }
+    if (!/serial\.(begin|print)/i.test(sketch)) {
+      warnings.push("No Serial usage detected – serial monitor will be quiet.");
+    }
+    if (!/pinmode\s*\(/i.test(sketch)) {
+      warnings.push("No pinMode calls found – pins may float in simulation.");
+    }
+
+    const digitalWrites = Array.from(
+      sketch.matchAll(/digitalWrite\s*\(([^,]+),\s*(HIGH|LOW)\)/gi)
+    ).map((match) => `${match[1].trim()} → ${match[2].toUpperCase()}`);
+
+    if (digitalWrites.length > 0) {
+      signals.push(`Detected ${digitalWrites.length} digital writes`);
+      script.push(...digitalWrites.map((dw) => `[Pins] digitalWrite ${dw}`));
+    }
+
+    const serialEvents = Array.from(
+      sketch.matchAll(/Serial\.(print|println)\s*\(([^)]+)\)/gi)
+    ).map((match) => match[2].trim());
+
+    if (serialEvents.length > 0) {
+      script.push(...serialEvents.map((msg) => `[Serial] ${msg.replace(/"/g, "")}`));
+    }
+
+    if (script.length === 0) {
+      script.push(
+        "[Loop] Cycle complete with no I/O – add Serial.println or digitalWrite for richer output."
+      );
+    }
+
+    return {
+      errors,
+      warnings,
+      signals,
+      ledUsage: digitalWrites.some((dw) => dw.toLowerCase().includes("led_builtin")),
+      script,
+    };
+  };
 
   useEffect(() => {
     telemetryRef.current = telemetry;
   }, [telemetry]);
 
-  const boardPresets = useMemo(
-    () => ({
-      "arduino-uno": {
-        name: "Arduino Uno",
-        color: "from-cyan-500/70 to-emerald-500/60",
-        label: "ARDUINO UNO",
-        lanes: 10,
-      },
-      "arduino-nano": {
-        name: "Arduino Nano",
-        color: "from-indigo-500/70 to-blue-500/60",
-        label: "ARDUINO NANO",
-        lanes: 8,
-      },
-      esp32: {
-        name: "ESP32 DevKit",
-        color: "from-purple-500/70 to-pink-500/60",
-        label: "ESP32 DEVKIT",
-        lanes: 12,
-      },
-    }),
-    []
-  );
+    let step = 0;
+    const interval = setInterval(() => {
+      const message = diagnostics.script[step % diagnostics.script.length];
+      setSerialOutput((prev) => [...prev, message]);
+      setLedState((prev) => (diagnostics.ledUsage ? !prev : false));
+      step += 1;
+    }, 900);
 
-  const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
-  const currentBoard = boardPresets[board];
-
-  const validateCode = useCallback(() => {
-    try {
-      // Will throw on syntax errors and surface meaningful feedback
-      new Function("setMotor", "readSensor", "sleep", "console", code);
-      setCompileStatus({ state: "ok", message: "Parsed successfully. Runtime faults will surface in the console." });
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown compiler error";
-      setCompileStatus({ state: "error", message });
-      setSerialOutput(prev => [...prev, `Compilation failed: ${message}`].slice(-30));
-      return false;
-    }
-  }, [code]);
+    return () => clearInterval(interval);
+  }, [diagnostics.ledUsage, diagnostics.script, isRunning]);
 
   const handleRun = () => {
     if (isRunning) {
-      stopSimulation();
-      setSerialOutput(prev => [...prev, "⏸ Simulation paused"].slice(-30));
+      setSimulationState("paused");
+      setIsRunning(false);
+      setSerialOutput((prev) => [...prev, "⏸️ Simulation paused"]);
       return;
     }
 
-    const passed = validateCode();
-    if (!passed) return;
+    const result = analyzeCode(code);
+    setDiagnostics(result);
 
-    setSerialOutput(["▶ Simulation started", `Board: ${currentBoard.name}`, "Uploading sketch…"]);
-    startSimulation();
-    executeCode(code);
+    if (result.errors.length > 0) {
+      setSimulationState("error");
+      setSerialOutput((prev) => [
+        ...prev,
+        "⛔ Build failed – fix the issues below:",
+        ...result.errors.map((err) => `• ${err}`),
+      ]);
+      setIsRunning(false);
+      return;
+    }
+
+    setSerialOutput((prev) => [
+      ...prev,
+      "✅ Build succeeded. Streaming from virtual MCU...",
+      ...result.warnings.map((warn) => `⚠️ ${warn}`),
+      result.script[0],
+    ]);
+    setSimulationState("running");
+    setIsRunning(true);
   };
 
   const handleReset = () => {
-    resetSimulation();
-    setSerialOutput(["Reset complete", "Ready for upload…"]);
+    setIsRunning(false);
+    setLedState(false);
+    setDiagnostics({ errors: [], warnings: [], signals: [], ledUsage: true, script: [] });
+    setSimulationState("idle");
+    setSerialOutput(["🧹 Cleared. Paste code and hit Run to simulate again."]);
   };
 
   useEffect(() => {
@@ -238,7 +278,7 @@ const Simulator = () => {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Radio className={`h-3 w-3 ${isRunning ? "text-green-400" : "text-muted-foreground"}`} />
-                  {isRunning ? "Live" : "Idle"}
+                  {simulationState === "error" ? "Error" : isRunning ? "Live" : "Idle"}
                 </div>
               </div>
               <div className={`relative rounded-xl p-4 min-h-[320px] border bg-gradient-to-br ${currentBoard.color} overflow-hidden`}>
@@ -276,12 +316,16 @@ const Simulator = () => {
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
-                        isRunning ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
+                        ledState && diagnostics.ledUsage ? "bg-yellow-300 shadow-glow-cyan" : "bg-white/20"
                       }`}
                     />
                     <div className="text-white text-sm">
                       <div className="font-semibold">Built-in LED</div>
-                      <p className="text-white/80 text-xs">Toggles automatically while simulation runs</p>
+                      <p className="text-white/80 text-xs">
+                        {diagnostics.ledUsage
+                          ? "Toggles when code hits digitalWrite(LED_BUILTIN, ...)"
+                          : "Add LED_BUILTIN writes to visualize activity"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -293,27 +337,59 @@ const Simulator = () => {
               <SimulatorCanvas telemetry={telemetry} />
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <TelemetryPanel telemetry={telemetry} />
-              <Card className="p-4 glass-card">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-semibold">Serial Monitor</h2>
-                  <span className="text-xs text-muted-foreground">Live console</span>
+            <Card className="p-6 glass-card">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">Compilation &amp; Health</h2>
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    simulationState === "running"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : simulationState === "error"
+                        ? "bg-red-500/15 text-red-400"
+                        : simulationState === "paused"
+                          ? "bg-amber-500/15 text-amber-400"
+                          : "bg-slate-500/15 text-slate-300"
+                  }`}
+                >
+                  {simulationState === "running"
+                    ? "Running"
+                    : simulationState === "error"
+                      ? "Build errors"
+                      : simulationState === "paused"
+                        ? "Paused"
+                        : "Idle"}
                 </div>
-                <Separator className="mb-2" />
-                <div className="bg-black/50 rounded-lg p-3 h-[180px] overflow-y-auto font-mono text-xs space-y-1">
-                  {serialOutput.length === 0 ? (
-                    <div className="text-gray-500">Waiting for output…</div>
-                  ) : (
-                    serialOutput.map((line, i) => (
-                      <div key={i} className="text-green-400">
-                        {line}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Card>
-            </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                {diagnostics.errors.length === 0 ? (
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <Sparkles className="h-4 w-4" />
+                    Sketch passes quick validation
+                  </div>
+                ) : (
+                  diagnostics.errors.map((err, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-red-300">
+                      <Bug className="h-4 w-4 mt-0.5" />
+                      <span>{err}</span>
+                    </div>
+                  ))
+                )}
+
+                {diagnostics.warnings.map((warn, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-amber-300">
+                    <Radio className="h-4 w-4 mt-0.5" />
+                    <span>{warn}</span>
+                  </div>
+                ))}
+
+                {diagnostics.signals.length > 0 && (
+                  <div className="pt-2 text-xs text-muted-foreground">
+                    Signals detected: {diagnostics.signals.join(", ")}
+                  </div>
+                )}
+              </div>
+            </Card>
           </div>
         </div>
       </div>

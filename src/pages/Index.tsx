@@ -32,7 +32,63 @@ const Index = () => {
   const { user } = useAuth();
   const { collaborations, isLoading } = useCollaboration();
   const { stats: platformStats } = usePlatformStats();
-  const isLoggedIn = Boolean(user);
+  const navigate = useNavigate();
+
+  const [planInput, setPlanInput] = useState("");
+  const [trainingConsent, setTrainingConsent] = useState(false);
+  const [dailyPlan, setDailyPlan] = useState([
+    {
+      title: "Warm up with a quick quiz",
+      description: "Test your fundamentals and unlock XP before diving into projects.",
+      action: () => navigate("/quiz-dashboard"),
+    },
+    {
+      title: "Build in the simulator",
+      description: "Load the ESP32/Arduino sandbox and prototype without hardware.",
+      action: () => navigate("/simulator"),
+    },
+    {
+      title: "Skim a human-grade article",
+      description: "Pick a topic in the Learn section and highlight key takeaways.",
+      action: () => navigate("/learn"),
+    },
+  ]);
+  const [routeConfidence, setRouteConfidence] = useState(82);
+  const buildAiRoute = (goal: string) => {
+    const mission = goal || "Prototype a rover that doesn't drift";
+    return [
+      {
+        title: "Calibrate the mission",
+        description: `Clarify success metrics for "${mission}" and confirm constraints (budget, sensors, timeline).`,
+        action: () => navigate("/dashboard"),
+        badge: "Briefing",
+        eta: "5 min",
+      },
+      {
+        title: "Draft firmware path",
+        description: "Open simulator with prewired pins, add pinMode + Serial scaffolding, and plot test cases.",
+        action: () => navigate("/simulator"),
+        badge: "AI Navigator",
+        eta: "12 min",
+      },
+      {
+        title: "Validate understanding",
+        description: "Run a focused quiz to catch gaps, then push corrections back into the sketch.",
+        action: () => navigate("/quiz-dashboard"),
+        badge: "Confidence",
+        eta: "8 min",
+      },
+      {
+        title: "Ship a micro-demo",
+        description: "Record serial output + LED behavior, export sketch, and share recap with teammates.",
+        action: () => navigate(user ? "/dashboard" : "/auth"),
+        badge: "Delivery",
+        eta: "10 min",
+      },
+    ];
+  };
+  const [aiRoute, setAiRoute] = useState(buildAiRoute("Prototype a rover"));
+  const [navigatorStatus, setNavigatorStatus] = useState<"idle" | "ready">("idle");
 
   const features = [
     {
@@ -57,53 +113,37 @@ const Index = () => {
     },
   ];
 
-  const accelerators = [
-    {
-      icon: Brain,
-      title: "AI Tutor Guidance",
-      description: "Personalized mentor-style responses that break down complex robotics concepts with examples.",
-      badge: "New",
-    },
-    {
-      icon: Compass,
-      title: "Adaptive Paths",
-      description: "Smart learning routes that react to your confidence levels and quiz results in real-time.",
-      badge: "Guided",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Safety-First Projects",
-      description: "Checklists, gate reviews, and reminders baked into every build so nothing gets overlooked.",
-      badge: "Trusted",
-    },
-    {
-      icon: MessageSquare,
-      title: "Collaboration Signals",
-      description: "Spot peers who are building similar bots and jump into focused conversations instantly.",
-      badge: "Live",
-    },
-  ];
+  const consentLabel = useMemo(
+    () => (trainingConsent ? "Training allowed on anonymized activity" : "Keep my data private"),
+    [trainingConsent]
+  );
 
-  const journeyPreview = [
-    {
-      title: "Foundations Sprint",
-      focus: "Coding & Control Systems",
-      progress: 72,
-      tags: ["Python", "PID", "Sensors"],
-    },
-    {
-      title: "Hardware Builder",
-      focus: "Electronics & Safety",
-      progress: 58,
-      tags: ["PCB", "Power", "Testing"],
-    },
-    {
-      title: "Autonomy Lab",
-      focus: "AI & Vision",
-      progress: 41,
-      tags: ["CV", "ROS", "Mapping"],
-    },
-  ];
+  const handlePlan = () => {
+    const trimmed = planInput.trim();
+    const mission = trimmed || "Ship a confident robotics session";
+
+    setRouteConfidence(Math.min(98, 72 + (mission.length % 20)));
+    setAiRoute(buildAiRoute(mission));
+    setNavigatorStatus("ready");
+
+    setDailyPlan([
+      {
+        title: "Start with focus",
+        description: `Today's mission: ${mission}`,
+        action: () => navigate("/dashboard"),
+      },
+      {
+        title: "Get guidance",
+        description: "Read a curated article and then take the adaptive quiz to lock it in.",
+        action: () => navigate("/learn"),
+      },
+      {
+        title: "Prototype fast",
+        description: "Spin up the simulator and preview your firmware without flashing hardware.",
+        action: () => navigate("/simulator"),
+      },
+    ]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-cosmic overflow-hidden">
@@ -234,96 +274,76 @@ const Index = () => {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3 text-sm">
-                    <button
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition ${
-                        trainingConsent ? "border-primary/60 bg-primary/10" : "border-border"
-                      }`}
-                      onClick={() => setTrainingConsent((prev) => !prev)}
-                      aria-pressed={trainingConsent}
-                    >
-                      <ShieldCheck className="h-4 w-4 text-primary" />
-                      {consentLabel}
-                    </button>
-                    <span className="text-muted-foreground">Toggle whether your activity trains the LLM.</span>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <button
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition ${
+                      trainingConsent ? "border-primary/60 bg-primary/10" : "border-border"
+                    }`}
+                    onClick={() => setTrainingConsent((prev) => !prev)}
+                    aria-pressed={trainingConsent}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    {consentLabel}
+                  </button>
+                  <span className="text-muted-foreground">Toggle whether your activity trains the LLM.</span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-primary text-xs">
+                    <Sparkles className="h-4 w-4" />
+                    {navigatorStatus === "ready" ? "Navigator synced" : "Awaiting mission"}
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-secondary"
+                    style={{ width: `${routeConfidence}%` }}
+                    aria-label={`Route confidence ${routeConfidence}%`}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">Confidence in this route • auto-updates with your goal.</div>
+              </div>
+              <Card className="p-4 border-dashed border-primary/30 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">AI navigator flight plan</p>
+                    <h3 className="text-lg font-semibold">Next actions</h3>
                   </div>
-                  <div className="text-xs px-3 py-2 rounded-full bg-primary/10 text-primary font-semibold">
-                    Navigator confidence: {navConfidence}%
+                  <div className="text-xs px-3 py-1 rounded-full bg-primary/20 text-primary font-semibold">
+                    {routeConfidence}% confident
                   </div>
                 </div>
-
-                <Card className="p-4 border border-primary/20 bg-background/70">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.15em] text-primary">Navigator route</p>
-                      <h3 className="text-lg font-semibold">Live guidance to your goal</h3>
-                    </div>
-                    <div className="text-xs px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-300/40 text-emerald-100">
-                      Connected
-                    </div>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  {aiRoute.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={item.action}
+                      className="w-full text-left p-3 rounded-lg bg-background/60 border border-border hover:border-primary/40 transition"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                            Step {idx + 1} • {item.badge}
+                          </div>
+                          <p className="text-sm font-semibold">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">{item.description}</p>
+                        </div>
+                        <div className="text-xs text-primary font-semibold px-2 py-1 rounded-full bg-primary/10 min-w-[60px] text-center">
+                          {item.eta}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t border-border/50 pt-3">
+                  <p className="text-xs text-muted-foreground mb-2">Quick queue</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {dailyPlan.map((item, idx) => (
                       <button
                         key={idx}
                         onClick={item.action}
-                        className="w-full text-left p-3 rounded-lg border border-border/60 hover:border-primary/60 hover:bg-primary/5 transition"
+                        className="w-full text-left p-3 rounded-lg hover:bg-primary/10 transition border border-border"
                       >
-                        <p className="text-sm font-semibold flex items-center gap-2">
-                          <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
-                          {item.title}
-                        </p>
+                        <p className="text-sm font-semibold">{item.title}</p>
                         <p className="text-xs text-muted-foreground">{item.description}</p>
                       </button>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-              <Card className="p-4 border-dashed border-primary/30 bg-primary/5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">AI Navigator plan</p>
-                  <span className="text-xs px-2 py-1 rounded-full bg-secondary/10 text-secondary">vNext</span>
-                </div>
-                <div className="space-y-3">
-                  {navPlan.map((step, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-lg border border-border/60 bg-background/60 flex items-start gap-3"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold">{step.title}</p>
-                          <span className="text-[10px] px-2 py-1 rounded-full border border-border/70">
-                            {step.eta}
-                          </span>
-                          <span
-                            className={`text-[10px] px-2 py-1 rounded-full ${
-                              step.status === "ready"
-                                ? "bg-emerald-500/10 text-emerald-200 border border-emerald-400/40"
-                                : "bg-amber-500/10 text-amber-100 border border-amber-400/40"
-                            }`}
-                          >
-                            {step.status === "ready" ? "Active" : "Queued"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{step.detail}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-lg bg-background/70 border border-border/60 p-3">
-                  <p className="text-xs uppercase text-muted-foreground tracking-[0.2em]">Flight log</p>
-                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    {navLog.slice(-4).map((line, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        {line}
-                      </div>
                     ))}
                   </div>
                 </div>
