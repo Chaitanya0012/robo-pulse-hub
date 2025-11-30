@@ -52,6 +52,8 @@ const Simulator = () => {
   const { isRunning, telemetry, startSimulation, stopSimulation, resetSimulation, executeCode } = useSimulator();
   const telemetryRef = useRef(telemetry);
 
+  const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
+
   useEffect(() => {
     telemetryRef.current = telemetry;
   }, [telemetry]);
@@ -270,6 +272,7 @@ const Simulator = () => {
                       </div>
                     </div>
                   </div>
+                  <p className="text-[11px] text-white/80">Highlighted pins show what your code is touching.</p>
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full shadow-lg border-4 border-white/40 transition-all duration-300 ${
