@@ -115,8 +115,8 @@ const Simulator = () => {
       errors.push("Missing setup() function to configure pins.");
     }
 
-    if (!/void\s+loop\s*\(/i.test(code)) {
-      errors.push("Missing loop() function to run repeatedly.");
+    if (!/void\s+loop\s*\(/i.test(code) && !/main\s*\(/i.test(code)) {
+      errors.push("Missing loop() or main() function to run repeatedly.");
     }
 
     const maxDigitalPin = currentBoard.lanes + 1;
@@ -311,7 +311,7 @@ const Simulator = () => {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Radio className={`h-3 w-3 ${isRunning ? "text-green-400" : "text-muted-foreground"}`} />
-                  {simulationState === "error" ? "Error" : isRunning ? "Live" : "Idle"}
+                  {isRunning ? "Live" : "Idle"}
                 </div>
               </div>
               <div className={`relative min-h-[320px] overflow-hidden rounded-xl border bg-gradient-to-br ${currentBoard.color}`}>
@@ -391,20 +391,14 @@ const Simulator = () => {
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
                     simulationState === "running"
                       ? "bg-emerald-500/15 text-emerald-400"
-                      : simulationState === "error"
+                      : compileStatus.state === "error"
                         ? "bg-red-500/15 text-red-400"
-                        : simulationState === "paused"
-                          ? "bg-amber-500/15 text-amber-400"
+                        : compileStatus.state === "ok"
+                          ? "bg-blue-500/15 text-blue-300"
                           : "bg-slate-500/15 text-slate-300"
                   }`}
                 >
-                  {simulationState === "running"
-                    ? "Running"
-                    : simulationState === "error"
-                      ? "Build errors"
-                      : simulationState === "paused"
-                        ? "Paused"
-                        : "Idle"}
+                  {isRunning ? "Running" : compileStatus.state === "error" ? "Build errors" : compileStatus.state === "ok" ? "Validated" : "Idle"}
                 </div>
               </div>
 
