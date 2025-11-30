@@ -435,7 +435,7 @@ const Simulator = () => {
               <div className="space-y-2 text-sm">
                 {diagnostics.errors.length === 0 ? (
                   <div className="flex items-center gap-2 text-emerald-400">
-                    <Sparkles className="h-4 w-4" />
+                    <Shield className="h-4 w-4" />
                     Sketch passes quick validation
                   </div>
                 ) : (
