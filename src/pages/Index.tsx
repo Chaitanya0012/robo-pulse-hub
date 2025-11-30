@@ -64,6 +64,38 @@ const Index = () => {
     "Telemetry: simulator available · quizzes synced",
   ]);
 
+  const createNavigatorPlan = (goal: string) => {
+    const trimmedGoal = goal.trim() || "Ship a stable robot demo";
+    return [
+      {
+        title: "Define done & guardrails",
+        detail: `Success looks like: ${trimmedGoal}. Write 3 checks you can verify in the simulator and one real-world fallback.`,
+        eta: "5 min",
+        status: "READY",
+      },
+      {
+        title: "Prototype in simulator",
+        detail: "Load your board preset, wire virtual sensors, and stream telemetry to catch logic bugs before hardware.",
+        eta: "12 min",
+        status: "RUNNING",
+      },
+      {
+        title: "Navigation sanity",
+        detail: "Record a 90-second run with obstacles. If ultrasonic < 0.3m, trigger a slow-turn recovery routine.",
+        eta: "8 min",
+        status: "PENDING",
+      },
+      {
+        title: "Quiz & lock-in",
+        detail: "Take a 4-question checkpoint on today’s topic to close the loop and earn XP.",
+        eta: "4 min",
+        status: "PENDING",
+      },
+    ];
+  };
+
+  const navigatorPlan = useMemo(() => createNavigatorPlan(planInput), [planInput]);
+
   const features = [
     {
       icon: Target,
