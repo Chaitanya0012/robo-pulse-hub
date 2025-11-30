@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Flame, Sparkles, Target } from "lucide-react";
 import Navigation from "@/components/Navigation";
 
 interface QuizQuestion {
@@ -55,6 +56,8 @@ export default function QuizAdvanced() {
   }, [articleId]);
 
   const currentQ = questions[currentIndex];
+  const progress = questions.length ? Math.round((currentIndex / questions.length) * 100) : 0;
+  const wrongVsRight = article?.wrong_vs_right;
 
   const handleAnswer = (idx: number) => {
     if (!currentQ || feedback) return;
@@ -110,6 +113,49 @@ export default function QuizAdvanced() {
               <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line">{article.content}</p>
             </div>
           )}
+
+          <div className="grid gap-4 sm:grid-cols-3 mb-6">
+            <div className="p-4 rounded-xl bg-card border border-border">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Progress</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-secondary"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">Question {currentIndex + 1} of {questions.length}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-500">
+                  <Flame className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Streak</span>
+                </div>
+                <span className="text-lg font-semibold">{stats.streak}</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                {stats.streak >= 3 ? "You're on fire—keep the momentum." : "Build your streak for bonus confidence."}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-primary/10 border border-emerald-500/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-500">
+                  <Target className="h-4 w-4" />
+                  <span className="text-xs uppercase tracking-wide">Focus</span>
+                </div>
+                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/10 text-white">
+                  +10 XP per correct
+                </span>
+              </div>
+              <p className="text-sm font-semibold mt-2">{currentQ?.difficulty || "Challenge"}</p>
+              <p className="text-sm text-muted-foreground">Answer to unlock the next robotics nugget.</p>
+            </div>
+          </div>
 
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm text-muted-foreground">
@@ -198,13 +244,32 @@ export default function QuizAdvanced() {
           </AnimatePresence>
 
           {showArticle && currentQ && (
-            <motion.div 
-              initial={{ opacity: 0, y: 8 }} 
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 rounded-xl bg-card border border-border"
             >
-              <h4 className="font-semibold mb-2">Explanation</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold">Explanation</h4>
+                <div className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Instant feedback
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground">{currentQ.explanation}</p>
+
+              {wrongVsRight && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-xs text-red-200 uppercase">Common mistake</p>
+                    <p className="text-sm text-red-100">{wrongVsRight.wrong}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <p className="text-xs text-emerald-200 uppercase">Ideal answer</p>
+                    <p className="text-sm text-emerald-100">{wrongVsRight.right}</p>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </div>

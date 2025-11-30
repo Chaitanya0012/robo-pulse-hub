@@ -35,6 +35,42 @@ const Index = () => {
       action: () => navigate("/learn"),
     },
   ]);
+  const [routeConfidence, setRouteConfidence] = useState(82);
+  const buildAiRoute = (goal: string) => {
+    const mission = goal || "Prototype a rover that doesn't drift";
+    return [
+      {
+        title: "Calibrate the mission",
+        description: `Clarify success metrics for "${mission}" and confirm constraints (budget, sensors, timeline).`,
+        action: () => navigate("/dashboard"),
+        badge: "Briefing",
+        eta: "5 min",
+      },
+      {
+        title: "Draft firmware path",
+        description: "Open simulator with prewired pins, add pinMode + Serial scaffolding, and plot test cases.",
+        action: () => navigate("/simulator"),
+        badge: "AI Navigator",
+        eta: "12 min",
+      },
+      {
+        title: "Validate understanding",
+        description: "Run a focused quiz to catch gaps, then push corrections back into the sketch.",
+        action: () => navigate("/quiz-dashboard"),
+        badge: "Confidence",
+        eta: "8 min",
+      },
+      {
+        title: "Ship a micro-demo",
+        description: "Record serial output + LED behavior, export sketch, and share recap with teammates.",
+        action: () => navigate(user ? "/dashboard" : "/auth"),
+        badge: "Delivery",
+        eta: "10 min",
+      },
+    ];
+  };
+  const [aiRoute, setAiRoute] = useState(buildAiRoute("Prototype a rover"));
+  const [navigatorStatus, setNavigatorStatus] = useState<"idle" | "ready">("idle");
 
   const features = [
     {
@@ -66,12 +102,16 @@ const Index = () => {
 
   const handlePlan = () => {
     const trimmed = planInput.trim();
-    if (!trimmed) return;
+    const mission = trimmed || "Ship a confident robotics session";
+
+    setRouteConfidence(Math.min(98, 72 + (mission.length % 20)));
+    setAiRoute(buildAiRoute(mission));
+    setNavigatorStatus("ready");
 
     setDailyPlan([
       {
         title: "Start with focus",
-        description: `Today's mission: ${trimmed}`,
+        description: `Today's mission: ${mission}`,
         action: () => navigate("/dashboard"),
       },
       {
@@ -202,7 +242,7 @@ const Index = () => {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[2fr,1fr] items-start">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="text-sm text-muted-foreground">What do you want to do today?</label>
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <input
@@ -216,7 +256,7 @@ const Index = () => {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-3 text-sm">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
                   <button
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition ${
                       trainingConsent ? "border-primary/60 bg-primary/10" : "border-border"
@@ -228,21 +268,66 @@ const Index = () => {
                     {consentLabel}
                   </button>
                   <span className="text-muted-foreground">Toggle whether your activity trains the LLM.</span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-primary text-xs">
+                    <Sparkles className="h-4 w-4" />
+                    {navigatorStatus === "ready" ? "Navigator synced" : "Awaiting mission"}
+                  </span>
                 </div>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-secondary"
+                    style={{ width: `${routeConfidence}%` }}
+                    aria-label={`Route confidence ${routeConfidence}%`}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">Confidence in this route • auto-updates with your goal.</div>
               </div>
-              <Card className="p-4 border-dashed border-primary/30 bg-primary/5">
-                <p className="text-sm text-muted-foreground mb-3">Autopilot queue</p>
+              <Card className="p-4 border-dashed border-primary/30 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">AI navigator flight plan</p>
+                    <h3 className="text-lg font-semibold">Next actions</h3>
+                  </div>
+                  <div className="text-xs px-3 py-1 rounded-full bg-primary/20 text-primary font-semibold">
+                    {routeConfidence}% confident
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  {dailyPlan.map((item, idx) => (
+                  {aiRoute.map((item, idx) => (
                     <button
                       key={idx}
                       onClick={item.action}
-                      className="w-full text-left p-3 rounded-lg hover:bg-primary/10 transition"
+                      className="w-full text-left p-3 rounded-lg bg-background/60 border border-border hover:border-primary/40 transition"
                     >
-                      <p className="text-sm font-semibold">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                            Step {idx + 1} • {item.badge}
+                          </div>
+                          <p className="text-sm font-semibold">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">{item.description}</p>
+                        </div>
+                        <div className="text-xs text-primary font-semibold px-2 py-1 rounded-full bg-primary/10 min-w-[60px] text-center">
+                          {item.eta}
+                        </div>
+                      </div>
                     </button>
                   ))}
+                </div>
+                <div className="border-t border-border/50 pt-3">
+                  <p className="text-xs text-muted-foreground mb-2">Quick queue</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {dailyPlan.map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={item.action}
+                        className="w-full text-left p-3 rounded-lg hover:bg-primary/10 transition border border-border"
+                      >
+                        <p className="text-sm font-semibold">{item.title}</p>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </Card>
             </div>
