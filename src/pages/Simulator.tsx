@@ -54,16 +54,59 @@ const Simulator = () => {
   const [serialOutput, setSerialOutput] = useState<string[]>([]);
   const [ledState, setLedState] = useState(false);
   const [board, setBoard] = useState<keyof typeof boardPresets>("arduino-uno");
+  const [compileStatus, setCompileStatus] = useState<"idle" | "ok" | "error" | "analyzing">("idle");
+  const [compileErrors, setCompileErrors] = useState<string[]>([]);
+
+  const extractSerialMessages = (sketch: string) => {
+    const regex = /Serial\.println?\(([^)]+)\)/g;
+    const messages: string[] = [];
+    let match;
+
+    while ((match = regex.exec(sketch))) {
+      messages.push(match[1].replace(/["'`]/g, "").trim());
+    }
+
+    return messages.length > 0
+      ? messages
+      : ["No explicit Serial.print calls found, streaming telemetry only."];
+  };
+
+  const validateSketch = (sketch: string) => {
+    const errors: string[] = [];
+
+    if (!sketch.includes("void setup")) errors.push("Missing setup() function");
+    if (!sketch.includes("void loop")) errors.push("Missing loop() function");
+
+    const braceDiff = (sketch.match(/\{/g)?.length || 0) - (sketch.match(/\}/g)?.length || 0);
+    if (braceDiff !== 0) errors.push("Unbalanced braces detected");
+
+    if (!/Serial\.begin/.test(sketch)) {
+      errors.push("Serial port never initialized (Serial.begin missing)");
+    }
+
+    if (!/digitalWrite|analogWrite/.test(sketch)) {
+      errors.push("No pin control detected. Add digitalWrite/analogWrite calls.");
+    }
+
+    return errors;
+  };
 
   const currentBoard = useMemo(() => boardPresets[board], [board]);
 
+  const compiledMessages = useMemo(() => extractSerialMessages(code), [code]);
+
   useEffect(() => {
-    if (!isRunning) return;
+    setCompileStatus("idle");
+    setCompileErrors([]);
+  }, [code]);
+
+  useEffect(() => {
+    if (!isRunning || compileStatus !== "ok") return;
 
     const messages = [
       "[Boot] MCU ready. Uploading sketch...",
       "[Info] Pins initialized",
-      "[Serial] Robot moving...",
+      ...compiledMessages.map((msg) => `[Serial] ${msg}`),
       "[Sensor] Ultrasonic ping 24cm",
       "[Info] LED toggled",
     ];
@@ -76,22 +119,45 @@ const Simulator = () => {
     }, 900);
 
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, compileStatus, compiledMessages]);
 
   const handleRun = () => {
-    setIsRunning((prev) => {
-      const next = !prev;
-      if (next) {
-        setSerialOutput((prevOutput) => [...prevOutput, "▶ Simulation started"]);
-      }
-      return next;
-    });
+    if (isRunning) {
+      setIsRunning(false);
+      return;
+    }
+
+    setCompileStatus("analyzing");
+    const issues = validateSketch(code);
+
+    if (issues.length) {
+      setCompileStatus("error");
+      setCompileErrors(issues);
+      setSerialOutput((prev) => [
+        ...prev,
+        "⛔ Compilation failed",
+        ...issues.map((issue) => `• ${issue}`),
+      ]);
+      setIsRunning(false);
+      return;
+    }
+
+    setCompileErrors([]);
+    setCompileStatus("ok");
+    setSerialOutput((prevOutput) => [
+      ...prevOutput,
+      "✅ Compile succeeded",
+      "▶ Simulation started",
+    ]);
+    setIsRunning(true);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setLedState(false);
     setSerialOutput([]);
+    setCompileErrors([]);
+    setCompileStatus("idle");
   };
 
   return (
@@ -129,7 +195,26 @@ const Simulator = () => {
           <Card className="p-6 glass-card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Code Editor</h2>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <div
+                  className={`text-xs px-3 py-1 rounded-full border ${
+                    compileStatus === "ok"
+                      ? "border-emerald-400/60 text-emerald-200 bg-emerald-500/10"
+                      : compileStatus === "error"
+                        ? "border-red-400/60 text-red-200 bg-red-500/10"
+                        : compileStatus === "analyzing"
+                          ? "border-amber-400/60 text-amber-100 bg-amber-500/10"
+                          : "border-border text-muted-foreground bg-background/60"
+                  }`}
+                >
+                  {compileStatus === "analyzing"
+                    ? "Analyzing sketch..."
+                    : compileStatus === "ok"
+                      ? "Ready to simulate"
+                      : compileStatus === "error"
+                        ? "Fix required"
+                        : "Idle"}
+                </div>
                 <Button size="sm" onClick={handleRun} className={isRunning ? "bg-orange-500" : "bg-green-500"}>
                   {isRunning ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                   {isRunning ? "Pause" : "Run"}
@@ -154,6 +239,17 @@ const Simulator = () => {
                 }}
               />
             </div>
+
+            {compileErrors.length > 0 && (
+              <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100">
+                <div className="font-semibold mb-1">Compilation blockers</div>
+                <ul className="list-disc list-inside space-y-1">
+                  {compileErrors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
 
           <div className="space-y-6">
