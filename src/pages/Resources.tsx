@@ -3,6 +3,7 @@ import Navigation from "@/components/Navigation";
 import ResourceCard from "@/components/ResourceCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Search, Filter, Plus, Trash2 } from "lucide-react";
 import {
@@ -26,7 +27,7 @@ import { useResources } from "@/hooks/useResources";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
-import { useXP, XP_REWARDS } from "@/hooks/useXP";
+import { useXP, useXPConfig, DEFAULT_XP_REWARDS } from "@/hooks/useXP";
 
 const Resources = () => {
   const { user } = useAuth();
@@ -34,6 +35,8 @@ const Resources = () => {
   const { isModerator, isAdmin } = useUserRole();
   const { toast } = useToast();
   const { addXP } = useXP();
+  const { data: xpConfig } = useXPConfig();
+  const xpRewards = xpConfig?.xp_rewards ?? DEFAULT_XP_REWARDS;
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
@@ -59,8 +62,11 @@ const Resources = () => {
                          (resource.description || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === "all" || resource.category === categoryFilter;
     const matchesConfidence = confidenceFilter === "all" || resource.category === confidenceFilter;
-    return matchesSearch && matchesCategory && matchesConfidence;
+    const isVisible = resource.is_approved || (user && resource.user_id === user.id) || isModerator;
+    return matchesSearch && matchesCategory && matchesConfidence && isVisible;
   });
+
+  const pendingResources = resources.filter((resource) => !resource.is_approved);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +92,7 @@ const Resources = () => {
     createResource({ ...newResource, is_approved: isModerator || isAdmin });
     addXP({
       activityType: 'create_resource',
-      xpAmount: XP_REWARDS.create_resource,
+      xpAmount: xpRewards.create_resource,
       description: `Created resource: ${newResource.title}`,
     });
     setNewResource({
@@ -114,13 +120,14 @@ const Resources = () => {
             <div>
               <h1 className="text-4xl font-bold mb-2">Resource Hub</h1>
               <p className="text-muted-foreground">Explore curated tutorials, guides, and tools to enhance your learning</p>
+              <p className="text-xs text-muted-foreground mt-2">Video links work best when you copy them into your browser. We show the title and description here so students can preview quickly.</p>
             </div>
             {user && (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Resource
+                    Upload a resource
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -308,6 +315,8 @@ const Resources = () => {
                       rating={resource.avg_rating}
                       ratingCount={resource.rating_count}
                       url={resource.url || undefined}
+                      isApproved={resource.is_approved}
+                      submittedByYou={user?.id === resource.user_id}
                     />
                     {(isModerator || isAdmin) && (
                       <Button
