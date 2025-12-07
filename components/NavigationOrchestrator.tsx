@@ -83,13 +83,6 @@ export const NavigationOrchestratorProvider = ({ children }: { children: React.R
         navigate(target);
       }
 
-      if (output.ui_action === "UPDATE_PATH" && output.ui_payload && "path" in output.ui_payload) {
-        const nextPath = Array.isArray(output.ui_payload.path)
-          ? (output.ui_payload.path as string[])
-          : [];
-        setLearningPath(nextPath);
-      }
-
       if (output.ui_action === "UPDATE_LAYOUT" && output.ui_payload) {
         setLayout((prev) => ({
           ...prev,
@@ -99,7 +92,6 @@ export const NavigationOrchestratorProvider = ({ children }: { children: React.R
 
       if (output.ui_action === "OPEN_SIMULATOR") {
         setLayout((prev) => ({ ...prev, openSimulator: true }));
-        navigate("/simulator");
       }
 
       if (output.ui_action === "SHOW_FEEDBACK") {
@@ -116,10 +108,6 @@ export const NavigationOrchestratorProvider = ({ children }: { children: React.R
 
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 };
-
-export const NavigationOrchestrator = ({ children }: { children: React.ReactNode }) => (
-  <NavigationOrchestratorProvider>{children}</NavigationOrchestratorProvider>
-);
 
 export const useNavigationOrchestrator = () => {
   const ctx = useContext(NavigationContext);
